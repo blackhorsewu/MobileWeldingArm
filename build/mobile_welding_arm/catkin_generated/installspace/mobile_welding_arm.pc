@@ -1,8 +1,0 @@
-prefix=/home/victor/catkin_ws/install
-
-Name: mobile_welding_arm
-Description: Description of mobile_welding_arm
-Version: 0.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 

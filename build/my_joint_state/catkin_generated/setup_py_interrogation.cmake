@@ -1,7 +1,0 @@
-set(my_joint_state_SETUP_PY_SETUP_MODULE "distutils.core")
-set(my_joint_state_SETUP_PY_VERSION "0.0.1")
-set(my_joint_state_SETUP_PY_SCRIPTS "")
-set(my_joint_state_SETUP_PY_PACKAGES "my_joint_state")
-set(my_joint_state_SETUP_PY_PACKAGE_DIRS "src/my_joint_state")
-set(my_joint_state_SETUP_PY_MODULES "")
-set(my_joint_state_SETUP_PY_MODULE_DIRS "")
