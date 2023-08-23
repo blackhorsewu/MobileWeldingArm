@@ -1,0 +1,8 @@
+prefix=/home/victor/catkin_ws/devel
+
+Name: bunker_msgs
+Description: Description of bunker_msgs
+Version: 0.3.3
+Cflags: -I/home/victor/catkin_ws/devel/include
+Libs: -L${prefix}/lib 
+Requires: 

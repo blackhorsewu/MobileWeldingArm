@@ -1,0 +1,8 @@
+prefix=/home/victor/catkin_ws/install
+
+Name: bunker_bringup
+Description: Description of bunker_bringup
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

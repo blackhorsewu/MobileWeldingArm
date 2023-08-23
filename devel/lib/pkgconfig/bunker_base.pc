@@ -1,0 +1,8 @@
+prefix=/home/victor/catkin_ws/devel
+
+Name: bunker_base
+Description: Description of bunker_base
+Version: 0.3.3
+Cflags: -I/home/victor/catkin_ws/src/bunker_pro/src/bunker_base/include
+Libs: -L${prefix}/lib -lbunker_messenger
+Requires: ugv_sdk bunker_msgs

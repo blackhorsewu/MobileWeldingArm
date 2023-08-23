@@ -1,0 +1,2 @@
+/usr/bin/ar qc /home/victor/catkin_ws/devel/lib/libbunker_messenger.a  CMakeFiles/bunker_messenger.dir/src/bunker_messenger.cpp.o
+/usr/bin/ranlib /home/victor/catkin_ws/devel/lib/libbunker_messenger.a

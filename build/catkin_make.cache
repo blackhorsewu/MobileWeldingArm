@@ -1,0 +1,2 @@
+bunker_pro/src/bunker_base:bunker_pro/src/bunker_bringup:bunker_pro/src/bunker_msgs:bunker_pro_description:mobile_welding_arm:my_joint_state:realsense2_description:ugv_sdk:ur_description
+-DCATKIN_DEVEL_PREFIX=/home/victor/catkin_ws/devel -DCMAKE_INSTALL_PREFIX=/home/victor/catkin_ws/install -G Unix Makefiles
