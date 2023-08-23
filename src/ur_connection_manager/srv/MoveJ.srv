@@ -1,0 +1,6 @@
+float64[6] destination_pose
+float64 acceleration
+float64 velocity
+bool wait
+---
+bool success

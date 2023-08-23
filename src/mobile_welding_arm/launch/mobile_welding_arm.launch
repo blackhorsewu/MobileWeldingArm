@@ -4,7 +4,7 @@
   * Date: 22 August 2023.
   *
   * Description:
-  *   This file will the complete MobileWeldingArm system.
+  *   This file will launch the complete mobile_welding_arm system.
   *
   * Copyright (c) 2023 Victor W H Wu
 -->
@@ -12,9 +12,9 @@
 <launch>
   <!-- Non-standard joint names:
        - Create a file [chs_moveit_config]/config/joint_names.yaml
-           controller_joint_names: [joint_1, joint_2, ... joint_N] 
-       - Update with joint names for your robot (in order expected by rbt controller)
-       - and uncomment the following line: -->
+           joint_names: [joint_1, joint_2, ... joint_N] 
+       - Update with joint names for your robot (in order expected by robot state publisher)
+  -->
   <rosparam command="load" file="$(find mobile_welding_arm)/config/joint_names.yaml"/>
 
   <param name="robot_description"
@@ -22,19 +22,12 @@
   />
 
   <!--
-    Launch the robot UR10
-  
-  <include file = 
-    "$(find chs_moveit_config)/launch/pro1035_planning_execution.launch">
-    <arg name="sim" value="false" />
-    <arg name="robot_ip" value="192.168.1.203" />
-  </include>
+    Launch the robot UR10 and the socket connection manager
   -->
-
-  <param name="robot_ip" value="192.168.1.203" />
-  <node name="my_joint_state" 
-        pkg="my_joint_state" 
-        type="my_joint_state.py" /> 
+  <param name="~robot_ip" value="192.168.1.203" />
+  <node name="ur_connection_manager" 
+        pkg="ur_connection_manager" 
+        type="ur_connection_manager_node.py" /> 
 
    <node name="robot_state_publisher" 
          pkg="robot_state_publisher" 
