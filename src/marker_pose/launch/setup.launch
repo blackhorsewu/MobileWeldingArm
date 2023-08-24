@@ -1,0 +1,35 @@
+<?xml version="1.0" ?>
+<!--
+  * Author: Victor W H Wu
+  * Date: 8 August 2023.
+  *
+  * Description:
+  *   This file will launch the D435 camera first
+  *   then launch the marker pose node
+  *
+  * Copyright (c) 2023 Victor W H Wu
+-->
+
+<launch>
+  <!--
+    Launch the camera D435
+  -->
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
+    <arg name="camera" value="d435" />
+    <arg name="enable_pointcloud" value="true"/>
+  </include>
+
+  <!--
+    Launch the marker pose node
+  -->
+  <node pkg="marker_pose"
+        type="marker_pose.py"
+        name="marker_pose_node"
+        output="screen" >
+    <param name="squaresX" value="3" />
+    <param name="squaresY" value="3" />
+    <param name="squareLength" value="0.0265" />
+    <param name="markerLength" value="0.02" />
+    <param name="aruco_type" value="DICT_6x6_100" />
+  </node>
+</launch>

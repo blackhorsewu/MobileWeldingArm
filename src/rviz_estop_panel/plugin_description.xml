@@ -1,0 +1,7 @@
+<library path="lib/libestop_panel">
+  <class name="rviz_estop_panel/EStopPanel" type="EStopPanel" base_class_type="rviz::Panel">
+    <description>
+      Custom panel for Emergency Stop.
+    </description>
+  </class>
+</library>

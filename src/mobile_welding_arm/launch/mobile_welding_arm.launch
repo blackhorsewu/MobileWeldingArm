@@ -22,70 +22,43 @@
   />
 
   <!--
+    Launch the camera D435 
+  -->
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
+    <arg name="camera" value="d435" />
+    <arg name="enable_pointcloud" value="true"/>
+  </include>
+
+  <!--
     Launch the robot UR10 and the socket connection manager
+    This will connect to the UR 10 
+    This will also publish the Joint States
   -->
   <param name="~robot_ip" value="192.168.1.203" />
   <node name="ur_connection_manager" 
         pkg="ur_connection_manager" 
         type="ur_connection_manager_node.py" /> 
 
-   <node name="robot_state_publisher" 
-         pkg="robot_state_publisher" 
-         type="robot_state_publisher" />
-
   <!--
-    Launch the camera D435
-  <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
-    <arg name="camera" value="d435" />
-    <arg name="enable_pointcloud" value="true"/>
-  </include>
+    Launch the Robot State Publisher
   -->
+  <node name="robot_state_publisher" 
+        pkg="robot_state_publisher" 
+        type="robot_state_publisher" />
 
-
-  <!--
-    Launch the Welding System
-  
-  <node pkg="welding_system"
-        type="welding_system.py"
-        name="welding_system_node"
-        output="screen" >
-    <param name="ugv1_model" value="Bunker_Pro" />
-    <param name="robot1_model" value="UR10" />
-    <param name="robot1_ip" value="192.168.1.203" />
-    <param name="color_camera1_model" value="d435" />
-    <param name="depth_camera1_model" value="d435" />
-    <param name="view_joints" value="[-0.0524, -1.1756, -2.6466, 0.8147, 1.5948, 0.0049]" />
-    <param name="distance" value="1.30" />
-  </node>
+  <!-- 
+    Setup the arguments before launching the UGV 
   -->
-
-  <!-- launch the marker_pose node 
-  <node pkg="marker_pose"
-        type="marker_pose.py"
-        name="marker_pose_node"
-        output="screen" >
-    <param name="markerLength" value="0.06" />
-    <param name="aruco_type" value="DICT_6x6_100" />
-  </node>
-  -->
-
-  <!--
   <arg name="port_name" default="can0" />
-  <arg name="is_bunker_mini" default="false" />-->
-  <!--
-  <arg name="simulated_robot" default="true" />
-  
+  <arg name="is_bunker_mini" default="false" />
   <arg name="simulated_robot" default="false" />
   <arg name="odom_topic_name" default="odom" />
   <arg name="pub_tf" default="true" />
+  
+  <!-- 
+    Launch the UGV 
   -->
-  <!--
   <node name="bunker_base_node" pkg="bunker_base" type="bunker_base_node" output="screen">
-  -->
-      <!--
-      <remap from="/cmd_vel" to="/smoother_cmd_vel"/>
-      -->
-  <!--
       <param name="is_bunker_mini" type="bool" value="$(arg is_bunker_mini)" />
       <param name="port_name" type="string" value="$(arg port_name)" />
       <param name="simulated_robot" type="bool" value="$(arg simulated_robot)" />
@@ -94,7 +67,33 @@
       <param name="odom_topic_name" type="string" value="$(arg odom_topic_name)" />
       <param name="pub_tf" type="bool" value="$(arg pub_tf)" />
   </node>
+  
+  <!--
+    Launch the Welding System
   -->
+  
+  <node pkg="mobile_welding_arm"
+        type="mobile_welding_arm.py"
+        name="mobile_welding_arm_node"
+        output="screen" >
+    <param name="ugv1_model" value="Bunker_Pro" />
+    <param name="robot1_model" value="UR10" />
+    <param name="color_camera1_model" value="d435" />
+    <param name="depth_camera1_model" value="d435" />
+    <param name="view_joints" value="[-0.0524, -1.1756, -2.6466, 0.8147, 1.5948, 0.0049]" />
+    <param name="distance" value="1.30" />
+  </node>
+
+  <!-- launch the marker_pose node -->
+  <node pkg="marker_pose"
+        type="marker_pose.py"
+        name="marker_pose_node"
+        output="screen" >
+    <param name="markerLength" value="0.06" />
+    <param name="aruco_type" value="DICT_6x6_100" />
+  </node>
+  
+
   <node name="rviz" pkg="rviz" type="rviz" 
         args="-d $(find mobile_welding_arm)/rviz/mobile_welding_arm.rviz" />
 

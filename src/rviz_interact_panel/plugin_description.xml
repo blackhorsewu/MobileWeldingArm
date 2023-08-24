@@ -1,0 +1,7 @@
+<library path="lib/libinteract_panel">
+  <class name="rviz_interact_panel/InteractPanel" type="InteractPanel" base_class_type="rviz::Panel">
+    <description>
+      Custom panel for Emergency Stop.
+    </description>
+  </class>
+</library>

@@ -34,6 +34,7 @@ class URConnectionManager:
     # Read joint names from parameter server
     self.joint_names = rospy.get_param('joint_names', [])
     # print('joint names: ', joint_names)
+    # register the services
     self.move_l_service = rospy.Service('move_l', MoveL, self.handle_move_l)
     self.move_j_service = rospy.Service('move_j', MoveJ, self.handle_move_j)
     pass
@@ -58,6 +59,7 @@ class URConnectionManager:
     acceleration = req.acceleration
     velocity = req.velocity
     wait = req.wait
+    self.robot.movej(destination_pose, acceleration, velocity, wait)
     success = True
     return MoveJResponse(success)
 
@@ -87,6 +89,8 @@ def main():
     while not rospy.is_shutdown():
       manager.publish_joint_states()
       rate.sleep()
+    # Make sure the connection is closed before shutdown.
+    manager.close_connection()
   finally:
     manager.close_connection()
 
