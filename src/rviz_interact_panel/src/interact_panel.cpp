@@ -1,6 +1,7 @@
 #include <rviz/panel.h>
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
+#include <std_msgs/String.h>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -18,14 +19,20 @@ private Q_SLOTS:
 
 private:
   ros::NodeHandle nh_;
-  ros::Publisher move_ugv_;
-  ros::Publisher move_camera_;
+  
+  ros::Publisher move_ugv_ = nh_.advertise<std_msgs::String>("move_ugv", 10);
+  ros::Publisher move_camera_ = nh_.advertise<std_msgs::String>("move_camera", 10);
+  
   QPushButton* confirm_button_;
   QLabel* status_label_;
+
+
   // Other widgets for different states...
 
   enum State {
+    InitialState,
     ConfirmUGVMove,
+    BetweenConfirmations,
     ConfirmCameraMove,
     // Other states...
   };
@@ -34,7 +41,7 @@ private:
 };
 
 // Constructor:
-InteractPanel::InteractPanel(QWidget* parent) : rviz::Panel(parent), current_state_(ConfirmUGVMove)
+InteractPanel::InteractPanel(QWidget* parent) : rviz::Panel(parent), current_state_(InitialState)
 {
   confirm_button_ = new QPushButton("Confirm UGV Move", this);
   connect(confirm_button_, SIGNAL(clicked()), this, SLOT(onConfirmButtonClicked()));
@@ -49,6 +56,10 @@ InteractPanel::InteractPanel(QWidget* parent) : rviz::Panel(parent), current_sta
   setLayout(layout);
 
   updateState();
+}
+
+void InteractPanel::setButtonVisibility(bool visible){
+  confirm_button_-> setVisible(visible);
 }
 
 // Slot implementation:
@@ -70,13 +81,20 @@ void InteractPanel::onConfirmButtonClicked()
 void InteractPanel::updateState()
 {
   switch (current_state_) {
+    case InitialState:
+      setButtonVisibility(false);
+      status_label_->setText("Initial state...");
+      break;
+
     case ConfirmUGVMove:
-      confirm_button_->setText("Confirm UGV Move");
+      setButtonVisibility(true);
+      confirm_button_->setText("Confirm Move UGV");
       status_label_->setText("Waiting for UGV confirmation...");
       // Update other widgets...
       break;
 
     case ConfirmCameraMove:
+      setButtonVisibility(true);
       confirm_button_->setText("Confirm Camera Move");
       status_label_->setText("Waiting for camera confirmation...");
       // Update other widgets...

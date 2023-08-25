@@ -121,6 +121,7 @@ class MarkerFollower:
 
     # print('Inside callback.')
     # Calculate the marker pose with respect to odom if not done yet
+    # print('marker pose: ', self.marker_pose)
     if self.marker_pose is None:
       # look up the transformation from the camera frame to the robot frame
       # buffer.lookup_transform(target frame, source frame, ...)
@@ -139,6 +140,7 @@ class MarkerFollower:
       # The first Marker Pose received before the UGV is moved.
       self.marker_pose = tf2_geometry_msgs.do_transform_pose(marker_pose, self.Tc2o)
       # From now on, the Static Marker Pose is with reference to ODOM and that is FIXED
+      # print('marker pose: ', self.marker_pose)
       print('marker pose setup.')
 
     target_pose = self.calculate_target_pose(marker_pose)

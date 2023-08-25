@@ -18,6 +18,8 @@
 '''
 
 import rospy
+from std_msgs.msg import String
+
 import urx
 from urx import Robot
 
@@ -96,7 +98,7 @@ class UGV:
   # the target is the distance from the marker on the Z-axis to the camera
   def move_to_target(self, distance):
     marker_follower = MarkerFollower(distance)
-    marker_follower.__init__(distance)
+    # marker_follower.__init__(distance)
     pass
 
 class WeldingPath:
@@ -113,6 +115,9 @@ class WeldingSystem:
     rospy.init_node('welding_system', anonymous=True)
     print('ROS initialized.')
 
+    # Setup publishers
+    self.ask_user_confirm_ugv_move_pub = rospy.Publisher('ask_user_confirm_ugv_move', String, queue_size=10)
+    
     # Define the states
     # To start with just 3 states:
     states = ['Initialization', 'UGVMovement', 'Error']
@@ -171,6 +176,7 @@ class WeldingSystem:
     '''
 
   def start_moving(self, distance):
+    self.ask_user_confirm_ugv_move_pub.publish('ask_user_confirm_ugv_move')
     self.ugv1.move_to_target(distance)
 
   def add_ugv(self, ugv):
@@ -180,11 +186,12 @@ class WeldingSystem:
     # Main application logic here
 
     # Before doing anything, make sure the initialization is completed.
-    while not rospy.is_shutdown():
-      if self.state == 'Initialization':
-        self.start_moving(distance=0.28)
-
-      rospy.sleep(.01)
+    # while not rospy.is_shutdown():
+    if self.state == 'Initialization':
+      self.start_moving(distance=0.28)
+      # Needs confirmation from user to carry on
+      # 
+      # rospy.sleep(.01)
 
 if __name__ == '__main__':
     print('Entered into the System.')
