@@ -95,7 +95,7 @@
   
 
   <node name="rviz" pkg="rviz" type="rviz" 
-        args="-d $(find mobile_welding_arm)/rviz/mobile_welding_arm.rviz" />
+        args="-d $(find mobile_welding_arm)/launch/mobile_welding_arm.rviz" />
 
 
 </launch>

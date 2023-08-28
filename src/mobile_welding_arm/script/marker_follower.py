@@ -75,6 +75,8 @@ class MarkerFollower:
     # Setup an empty target pose
     self.marker_pose = None
 
+    print('********************* finished initializing MarkerFollower ********************')
+
   def calculate_target_pose(self, marker_pose):
     # Calculate the Dynamic Target Pose, in ODOM frame
     # It is the difference between the Static Marker Pose - the Dynamic Marker Pose
@@ -151,5 +153,9 @@ class MarkerFollower:
     # Calculate the CURRENT_pose for "base" of ROBOT
     current_pose = self.tf_buffer.lookup_transform(self.camera_frame, self.robot_base, rospy.Time(0))
 
+  def run(self):
+    rate = rospy.Rate(10) # 10 Hz
+    while not rospy.is_shutdown():
+      rate.sleep()
 
 

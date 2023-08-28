@@ -97,8 +97,9 @@ class UGV:
   # move the UGV to the target
   # the target is the distance from the marker on the Z-axis to the camera
   def move_to_target(self, distance):
+    print('********************* In move_to_target ****************************')
     marker_follower = MarkerFollower(distance)
-    # marker_follower.__init__(distance)
+    marker_follower.run()
     pass
 
 class WeldingPath:
@@ -177,6 +178,7 @@ class WeldingSystem:
 
   def start_moving(self, distance):
     self.ask_user_confirm_ugv_move_pub.publish('ask_user_confirm_ugv_move')
+    print('********************** In start_moving *********************')
     self.ugv1.move_to_target(distance)
 
   def add_ugv(self, ugv):
@@ -184,6 +186,7 @@ class WeldingSystem:
 
   def main_loop(self):
     # Main application logic here
+    print('*********************** Just entered main loop *******************')
 
     # Before doing anything, make sure the initialization is completed.
     # while not rospy.is_shutdown():
