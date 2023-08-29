@@ -5,104 +5,134 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QLabel>
+#include <mutex>
+#include <condition_variable>
+#include "welding_msgs/InteractService1.h"
 
-// Class definition:
 class InteractPanel : public rviz::Panel
 {
 Q_OBJECT
 public:
-  InteractPanel(QWidget* parent = 0);
+    InteractPanel(QWidget* parent = 0);
 
 private Q_SLOTS:
-  void onConfirmButtonClicked();
-  void updateState();
+    void onApproveButtonClicked();
+    void onDisapproveButtonClicked();
+    // void updateDisplay(const std::string& message);
 
 private:
-  ros::NodeHandle nh_;
-  
-  ros::Publisher move_ugv_ = nh_.advertise<std_msgs::String>("move_ugv", 10);
-  ros::Publisher move_camera_ = nh_.advertise<std_msgs::String>("move_camera", 10);
-  
-  QPushButton* confirm_button_;
-  QLabel* status_label_;
+    std::mutex mtx_;
+    std::condition_variable cv_;
+    bool button_clicked_ = false;
+    bool approval_status_ = false;
 
+    bool userReactionCallback(welding_msgs::InteractService1::Request& req,
+                              welding_msgs::InteractService1::Response& res);
+    
+    ros::NodeHandle nh_;
+    ros::ServiceServer user_reaction_service_;
 
-  // Other widgets for different states...
+    QPushButton* approve_button_;
+    QPushButton* disapprove_button_;
+    QLabel* display_label_;
 
-  enum State {
-    InitialState,
-    ConfirmUGVMove,
-    BetweenConfirmations,
-    ConfirmCameraMove,
-    // Other states...
-  };
+    enum State {
+        Blank,
+        Waiting
+    };
 
-  State current_state_;
+    State current_state_;
+
+    void setButtonVisibility(bool visible);
+
+virtual ~InteractPanel();
 };
 
-// Constructor:
-InteractPanel::InteractPanel(QWidget* parent) : rviz::Panel(parent), current_state_(InitialState)
-{
-  confirm_button_ = new QPushButton("Confirm UGV Move", this);
-  connect(confirm_button_, SIGNAL(clicked()), this, SLOT(onConfirmButtonClicked()));
 
-  status_label_ = new QLabel("Waiting for confirmation...", this);
+// Constructor:
+InteractPanel::InteractPanel(QWidget* parent) : rviz::Panel(parent), current_state_(Blank)
+{
+  approve_button_ = new QPushButton("Yes", this);
+  connect(approve_button_, SIGNAL(clicked()), this, SLOT(onApproveButtonClicked()));
+
+  disapprove_button_ = new QPushButton("No", this);
+  connect(disapprove_button_, SIGNAL(clicked()), this, SLOT(onDisapproveButtonClicked()));
+
+  display_label_ = new QLabel("", this);
   // Initialize other widgets...
 
   QVBoxLayout* layout = new QVBoxLayout;
-  layout->addWidget(confirm_button_);
-  layout->addWidget(status_label_);
-  // Add other widgets to layout...
+  layout->addWidget(display_label_);
+  layout->addWidget(approve_button_);
+  layout->addWidget(disapprove_button_);
+
   setLayout(layout);
 
-  updateState();
+  user_reaction_service_ = nh_.advertiseService("user_reaction", 
+                                      &InteractPanel::userReactionCallback, this);
+}
+
+InteractPanel::~InteractPanel(){
+  // Cleanup code if necessary
 }
 
 void InteractPanel::setButtonVisibility(bool visible){
-  confirm_button_-> setVisible(visible);
+  approve_button_-> setVisible(visible);
+  disapprove_button_-> setVisible(visible);
+}
+
+bool InteractPanel::userReactionCallback(welding_msgs::InteractService1::Request& req,
+                                         welding_msgs::InteractService1::Response& res)
+{
+  // Display message on the panel
+  display_label_->setText(QString::fromStdString(req.display_message));
+  setButtonVisibility(true);
+
+  // Reset button_clicked_ flag
+  button_clicked_ = false;
+
+  // Wait for a button to be clicked
+  std::unique_lock<std::mutex> lock(mtx_);
+  cv_.wait(lock, [this]{ return button_clicked_; });
+
+  // Set the response based on which button was clicked
+  res.approved = approval_status_;
+
 }
 
 // Slot implementation:
-void InteractPanel::onConfirmButtonClicked()
+void InteractPanel::onApproveButtonClicked()
 {
-  // Handle the current state, e.g., send a command to the UGV or camera
-  // ...
-
-  // Update to the next state
-  if (current_state_ == ConfirmUGVMove) {
-    current_state_ = ConfirmCameraMove;
-  } else if (current_state_ == ConfirmCameraMove) {
-    current_state_ = ConfirmUGVMove;
-  }
-
-  updateState();
+  std::lock_guard<std::mutex> lock(mtx_);
+  approval_status_ = true;
+  button_clicked_ = true;
+  cv_.notify_one();
 }
 
-void InteractPanel::updateState()
+void InteractPanel::onDisapproveButtonClicked()
 {
-  switch (current_state_) {
-    case InitialState:
-      setButtonVisibility(false);
-      status_label_->setText("Initial state...");
-      break;
+  std::lock_guard<std::mutex> lock(mtx_);
+  approval_status_ = false;
+  button_clicked_ = true;
+  cv_.notify_one();
+}
 
-    case ConfirmUGVMove:
-      setButtonVisibility(true);
-      confirm_button_->setText("Confirm Move UGV");
-      status_label_->setText("Waiting for UGV confirmation...");
-      // Update other widgets...
-      break;
-
-    case ConfirmCameraMove:
-      setButtonVisibility(true);
-      confirm_button_->setText("Confirm Camera Move");
-      status_label_->setText("Waiting for camera confirmation...");
-      // Update other widgets...
-      break;
-
-    // Handle other states...
+/*
+void InteractPanel::updateDisplay(const std::string& message)
+{
+  if (message.empty()) {
+    current_state_ = Blank;
+    display_label_->setText("");
+    approve_button_->setVisible(false);
+    disapprove_button_->setVisible(false);
+  } else {
+    current_state_ = Waiting;
+    display_label_->setText(QString::fromStdString(message));
+    approve_button_->setVisible(true);
+    disapprove_button_->setVisible(true);
   }
 }
+*/
 
 // Plugin registration:
 #include <pluginlib/class_list_macros.h>

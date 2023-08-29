@@ -1,0 +1,3 @@
+string display_message # Message to display when waiting for user's response
+---
+bool approved # True if approved, False if disapproved.

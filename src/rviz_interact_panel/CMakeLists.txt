@@ -9,11 +9,16 @@ find_package(catkin REQUIRED COMPONENTS
   pluginlib
   roscpp
   std_msgs
+  rospy
+  welding_msgs
 )
 
-catkin_package()
+catkin_package(
+  CATKIN_DEPENDS roscpp rospy welding_msgs
+)
 
 include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
 )
 
