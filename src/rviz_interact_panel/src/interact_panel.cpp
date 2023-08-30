@@ -1,12 +1,9 @@
 #include <rviz/panel.h>
 #include <ros/ros.h>
-#include <std_msgs/Bool.h>
-#include <std_msgs/String.h>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QLabel>
-#include <mutex>
-#include <condition_variable>
+#include <QEventLoop>
 #include "welding_msgs/InteractService1.h"
 
 class InteractPanel : public rviz::Panel
@@ -18,14 +15,15 @@ public:
 private Q_SLOTS:
     void onApproveButtonClicked();
     void onDisapproveButtonClicked();
-    // void updateDisplay(const std::string& message);
+    void updateDisplay(const QString& message);
+    void handleUserResponse(bool approved);
+
+Q_SIGNALS:
+    void userResponseReceived();
+    void updateDisplaySignal(const QString& message);
 
 private:
-    std::mutex mtx_;
-    std::condition_variable cv_;
-    bool button_clicked_ = false;
     bool approval_status_ = false;
-
     bool userReactionCallback(welding_msgs::InteractService1::Request& req,
                               welding_msgs::InteractService1::Response& res);
     
@@ -35,6 +33,7 @@ private:
     QPushButton* approve_button_;
     QPushButton* disapprove_button_;
     QLabel* display_label_;
+    QEventLoop wait_loop_;
 
     enum State {
         Blank,
@@ -42,97 +41,85 @@ private:
     };
 
     State current_state_;
-
     void setButtonVisibility(bool visible);
-
-virtual ~InteractPanel();
+    virtual ~InteractPanel();
 };
 
-
-// Constructor:
 InteractPanel::InteractPanel(QWidget* parent) : rviz::Panel(parent), current_state_(Blank)
 {
-  approve_button_ = new QPushButton("Yes", this);
-  connect(approve_button_, SIGNAL(clicked()), this, SLOT(onApproveButtonClicked()));
+    approve_button_ = new QPushButton("Yes", this);
+    connect(approve_button_, SIGNAL(clicked()), this, SLOT(onApproveButtonClicked()));
+    approve_button_->setVisible(false);
 
-  disapprove_button_ = new QPushButton("No", this);
-  connect(disapprove_button_, SIGNAL(clicked()), this, SLOT(onDisapproveButtonClicked()));
+    disapprove_button_ = new QPushButton("No", this);
+    connect(disapprove_button_, SIGNAL(clicked()), this, SLOT(onDisapproveButtonClicked()));
+    disapprove_button_->setVisible(false);
 
-  display_label_ = new QLabel("", this);
-  // Initialize other widgets...
+    connect(this, SIGNAL(userResponseReceived()), &wait_loop_, SLOT(quit()));
+    connect(this, SIGNAL(updateDisplaySignal(const QString&)), this, SLOT(updateDisplay(const QString&)));
 
-  QVBoxLayout* layout = new QVBoxLayout;
-  layout->addWidget(display_label_);
-  layout->addWidget(approve_button_);
-  layout->addWidget(disapprove_button_);
+    display_label_ = new QLabel("", this);
+    QVBoxLayout* layout = new QVBoxLayout;
+    layout->addWidget(display_label_);
+    layout->addWidget(approve_button_);
+    layout->addWidget(disapprove_button_);
+    setLayout(layout);
 
-  setLayout(layout);
-
-  user_reaction_service_ = nh_.advertiseService("user_reaction", 
-                                      &InteractPanel::userReactionCallback, this);
+    user_reaction_service_ = nh_.advertiseService("user_reaction", &InteractPanel::userReactionCallback, this);
 }
 
 InteractPanel::~InteractPanel(){
-  // Cleanup code if necessary
+    // Cleanup code if necessary
 }
 
 void InteractPanel::setButtonVisibility(bool visible){
-  approve_button_-> setVisible(visible);
-  disapprove_button_-> setVisible(visible);
+    approve_button_-> setVisible(visible);
+    disapprove_button_-> setVisible(visible);
 }
 
 bool InteractPanel::userReactionCallback(welding_msgs::InteractService1::Request& req,
                                          welding_msgs::InteractService1::Response& res)
 {
-  // Display message on the panel
-  display_label_->setText(QString::fromStdString(req.display_message));
-  setButtonVisibility(true);
-
-  // Reset button_clicked_ flag
-  button_clicked_ = false;
-
-  // Wait for a button to be clicked
-  std::unique_lock<std::mutex> lock(mtx_);
-  cv_.wait(lock, [this]{ return button_clicked_; });
-
-  // Set the response based on which button was clicked
-  res.approved = approval_status_;
-
+    ROS_INFO("Entered userReactionCallback");
+    emit updateDisplaySignal(QString::fromStdString(req.display_message));
+    ROS_INFO("updateDisplaySignal has been emitted.");
+    wait_loop_.exec();
+    res.approved = approval_status_;
+    return true;
 }
 
-// Slot implementation:
 void InteractPanel::onApproveButtonClicked()
 {
-  std::lock_guard<std::mutex> lock(mtx_);
-  approval_status_ = true;
-  button_clicked_ = true;
-  cv_.notify_one();
+    approval_status_ = true;
+    emit userResponseReceived();
 }
 
 void InteractPanel::onDisapproveButtonClicked()
 {
-  std::lock_guard<std::mutex> lock(mtx_);
-  approval_status_ = false;
-  button_clicked_ = true;
-  cv_.notify_one();
+    approval_status_ = false;
+    emit userResponseReceived();
 }
 
-/*
-void InteractPanel::updateDisplay(const std::string& message)
+void InteractPanel::updateDisplay(const QString& message)
 {
-  if (message.empty()) {
-    current_state_ = Blank;
-    display_label_->setText("");
-    approve_button_->setVisible(false);
-    disapprove_button_->setVisible(false);
-  } else {
-    current_state_ = Waiting;
-    display_label_->setText(QString::fromStdString(message));
-    approve_button_->setVisible(true);
-    disapprove_button_->setVisible(true);
-  }
+    ROS_INFO("Entered updateDisplay");
+    std::string std_string = message.toStdString();
+    ROS_INFO("Display message: %s", std_string.c_str());
+
+    if (message.isEmpty()) {
+        ROS_INFO("Entered message.isEmpty");
+        current_state_ = Blank;
+        display_label_->setText("");
+        approve_button_->setVisible(false);
+        disapprove_button_->setVisible(false);
+    } else {
+        ROS_INFO("Entered message is not empty");
+        current_state_ = Waiting;
+        display_label_->setText(message);
+        approve_button_->setVisible(true);
+        disapprove_button_->setVisible(true);
+    }
 }
-*/
 
 // Plugin registration:
 #include <pluginlib/class_list_macros.h>

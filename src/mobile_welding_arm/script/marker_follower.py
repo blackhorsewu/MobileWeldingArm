@@ -35,6 +35,9 @@ from my_utilities import invert_transform
 
 from scipy.spatial.transform import Rotation as R
 
+import welding_msgs.srv 
+from welding_msgs.srv import InteractService1
+
 '''
 # Initialize the node and publishers/subscribers
 rospy.init_node('aruco_follower', anonymous=True)
@@ -74,6 +77,14 @@ class MarkerFollower:
 
     # Setup an empty target pose
     self.marker_pose = None
+
+    print('************************************ Going to wait for service. *********')
+    # Wait for the user reaction service
+    rospy.wait_for_service('user_reaction')
+    print('*********************************** Service available. ****************')
+
+    # Create a proxy for the service
+    self.user_reaction_service = rospy.ServiceProxy('user_reaction', welding_msgs.srv.InteractService1)
 
     print('********************* finished initializing MarkerFollower ********************')
 
@@ -143,7 +154,7 @@ class MarkerFollower:
       self.marker_pose = tf2_geometry_msgs.do_transform_pose(marker_pose, self.Tc2o)
       # From now on, the Static Marker Pose is with reference to ODOM and that is FIXED
       # print('marker pose: ', self.marker_pose)
-      print('marker pose setup.')
+      print('marker pose has been setup.')
 
     target_pose = self.calculate_target_pose(marker_pose)
 
@@ -155,6 +166,19 @@ class MarkerFollower:
 
   def run(self):
     rate = rospy.Rate(10) # 10 Hz
+
+    # Define the message to display on the panel
+    display_message = "Do you want to move the UGV?"
+
+    # Make the service call, and it will block here until a response is received.
+    # response = self.user_reaction_service(display_message)
+
+    # Check the response
+    # if response.approved:
+    #   print('User wants to Move the UGV.')
+    # else:
+    #   print('User does not want to Move the UGV.')
+
     while not rospy.is_shutdown():
       rate.sleep()
 

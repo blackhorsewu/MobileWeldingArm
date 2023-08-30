@@ -66,8 +66,8 @@ class URConnectionManager:
   def estop_callback(self, msg):
     if msg.data:
       rospy.loginfo("Emergency stop activated!")
-      self.stop_robot(self)
-      self.close_connection(self)
+      self.stop_robot()
+      self.close_connection()
     else:
       rospy.loginfo("Emergency stop deactivated!")
 
