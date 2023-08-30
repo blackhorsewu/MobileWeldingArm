@@ -171,13 +171,14 @@ class MarkerFollower:
     display_message = "Do you want to move the UGV?"
 
     # Make the service call, and it will block here until a response is received.
-    # response = self.user_reaction_service(display_message)
+    response = self.user_reaction_service(display_message)
 
     # Check the response
-    # if response.approved:
-    #   print('User wants to Move the UGV.')
-    # else:
-    #   print('User does not want to Move the UGV.')
+    if response.approved:
+      print('User wants to Move the UGV.')
+    else:
+      print('User does not want to Move the UGV.')
+      self.user_reaction_service.shutdown()
 
     while not rospy.is_shutdown():
       rate.sleep()
