@@ -86,7 +86,7 @@ class MarkerFollower:
     # Create a proxy for the service
     self.user_reaction_service = rospy.ServiceProxy('user_reaction', welding_msgs.srv.InteractService1)
 
-    print('********************* finished initializing MarkerFollower ********************')
+    print('********************* finished initializing MarkerFollower 31.8.23 ********************')
 
   def calculate_target_pose(self, marker_pose):
     # Calculate the Dynamic Target Pose, in ODOM frame
@@ -107,11 +107,11 @@ class MarkerFollower:
     r = R.from_quat(marker_quaternion)
     marker_matrix = r.as_matrix()
     
-    # Extract the X and Y components fo the marker's Z-axis
+    # Extract the X and Y components of the marker's Z-axis
     # The Z-axis of the marker lies on the X-Y plane
     target_x_axis = [-marker_matrix[2, 0], 0, 0] 
     target_y_axis = [0, marker_matrix[2, 1], 0] 
-    target_z_axis = [0, 0, -0] # Nothing for the Z-axis for the X-Y plane
+    target_z_axis = [0, 0, 0] # Nothing for the Z-axis for the X-Y plane
 
     target_r = R.from_matrix([target_x_axis, target_y_axis, target_z_axis])
     target_quaternion = target_r.as_quat()
@@ -167,19 +167,23 @@ class MarkerFollower:
   def run(self):
     rate = rospy.Rate(10) # 10 Hz
 
+    print('******************** In Marker Follower Run ********************')
+    
     # Define the message to display on the panel
     display_message = "Do you want to move the UGV?"
 
     # Make the service call, and it will block here until a response is received.
     response = self.user_reaction_service(display_message)
 
+    ''''''
     # Check the response
     if response.approved:
       print('User wants to Move the UGV.')
     else:
       print('User does not want to Move the UGV.')
       self.user_reaction_service.shutdown()
-
+    
+      
     while not rospy.is_shutdown():
       rate.sleep()
 
