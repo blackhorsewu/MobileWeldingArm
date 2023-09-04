@@ -92,10 +92,11 @@
     <param name="markerLength" value="0.06" />
     <param name="aruco_type" value="DICT_6x6_100" />
   </node>
-  
-
+  <!--
+  <node name="rviz" pkg="rviz" type="rviz" />
+  -->
   <node name="rviz" pkg="rviz" type="rviz" 
         args="-d $(find mobile_welding_arm)/launch/mobile_welding_arm.rviz" />
-
+  
 
 </launch>

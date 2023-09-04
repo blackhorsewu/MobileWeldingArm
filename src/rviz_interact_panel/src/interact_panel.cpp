@@ -3,7 +3,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QLabel>
-#include <QEventLoop>
+
 #include "welding_msgs/InteractService1.h"
 
 class InteractPanel : public rviz::Panel
@@ -19,21 +19,21 @@ private Q_SLOTS:
     void handleUserResponse(bool approved);
 
 Q_SIGNALS:
-    void userResponseReceived();
     void updateDisplaySignal(const QString& message);
 
 private:
     bool approval_status_ = false;
+    bool button_clicked_ = false;
     bool userReactionCallback(welding_msgs::InteractService1::Request& req,
                               welding_msgs::InteractService1::Response& res);
     
     ros::NodeHandle nh_;
     ros::ServiceServer user_reaction_service_;
+    ros::AsyncSpinner* spinner_;
 
     QPushButton* approve_button_;
     QPushButton* disapprove_button_;
     QLabel* display_label_;
-    QEventLoop wait_loop_;
 
     enum State {
         Blank,
@@ -55,7 +55,6 @@ InteractPanel::InteractPanel(QWidget* parent) : rviz::Panel(parent), current_sta
     connect(disapprove_button_, SIGNAL(clicked()), this, SLOT(onDisapproveButtonClicked()));
     disapprove_button_->setVisible(false);
 
-    connect(this, SIGNAL(userResponseReceived()), &wait_loop_, SLOT(quit()));
     connect(this, SIGNAL(updateDisplaySignal(const QString&)), this, SLOT(updateDisplay(const QString&)));
 
     display_label_ = new QLabel("", this);
@@ -65,11 +64,16 @@ InteractPanel::InteractPanel(QWidget* parent) : rviz::Panel(parent), current_sta
     layout->addWidget(disapprove_button_);
     setLayout(layout);
 
+    // Use the AsyncSpinner running on another 1 thread for Call back
+    spinner_ = new ros::AsyncSpinner(1);
+    spinner_->start();
     user_reaction_service_ = nh_.advertiseService("user_reaction", &InteractPanel::userReactionCallback, this);
 }
 
 InteractPanel::~InteractPanel(){
-    // Cleanup code if necessary
+    // Make sure the spinner is stopped and deleted 
+    spinner_->stop();
+    delete spinner_;
 }
 
 void InteractPanel::setButtonVisibility(bool visible){
@@ -80,40 +84,42 @@ void InteractPanel::setButtonVisibility(bool visible){
 bool InteractPanel::userReactionCallback(welding_msgs::InteractService1::Request& req,
                                          welding_msgs::InteractService1::Response& res)
 {
-    ROS_INFO("Entered userReactionCallback");
+    // Display the message and make the buttons visible
     emit updateDisplaySignal(QString::fromStdString(req.display_message));
-    ROS_INFO("updateDisplaySignal has been emitted.");
-    wait_loop_.exec();
-    res.approved = approval_status_;
+
+    // Wait for a button to be clicked
+    ros::Rate rate(10); // 10Hz
+    while (!button_clicked_ && ros::ok())
+    {
+        rate.sleep();
+    }
+
+    res.approved = approval_status_; // return Yes or No
     return true;
 }
 
 void InteractPanel::onApproveButtonClicked()
 {
     approval_status_ = true;
-    emit userResponseReceived();
+    button_clicked_ = true;
 }
 
 void InteractPanel::onDisapproveButtonClicked()
 {
     approval_status_ = false;
-    emit userResponseReceived();
+    button_clicked_ = true;
 }
 
 void InteractPanel::updateDisplay(const QString& message)
 {
-    ROS_INFO("Entered updateDisplay");
     std::string std_string = message.toStdString();
-    ROS_INFO("Display message: %s", std_string.c_str());
 
     if (message.isEmpty()) {
-        ROS_INFO("Entered message.isEmpty");
         current_state_ = Blank;
         display_label_->setText("");
         approve_button_->setVisible(false);
         disapprove_button_->setVisible(false);
     } else {
-        ROS_INFO("Entered message is not empty");
         current_state_ = Waiting;
         display_label_->setText(message);
         approve_button_->setVisible(true);

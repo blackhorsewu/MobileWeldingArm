@@ -78,16 +78,6 @@ class MarkerFollower:
     # Setup an empty target pose
     self.marker_pose = None
 
-    print('************************************ Going to wait for service. *********')
-    # Wait for the user reaction service
-    rospy.wait_for_service('user_reaction')
-    print('*********************************** Service available. ****************')
-
-    # Create a proxy for the service
-    self.user_reaction_service = rospy.ServiceProxy('user_reaction', welding_msgs.srv.InteractService1)
-
-    print('********************* finished initializing MarkerFollower 31.8.23 ********************')
-
   def calculate_target_pose(self, marker_pose):
     # Calculate the Dynamic Target Pose, in ODOM frame
     # It is the difference between the Static Marker Pose - the Dynamic Marker Pose
@@ -154,7 +144,7 @@ class MarkerFollower:
       self.marker_pose = tf2_geometry_msgs.do_transform_pose(marker_pose, self.Tc2o)
       # From now on, the Static Marker Pose is with reference to ODOM and that is FIXED
       # print('marker pose: ', self.marker_pose)
-      print('marker pose has been setup.')
+      print('*********************** marker pose has been setup. *************************************')
 
     target_pose = self.calculate_target_pose(marker_pose)
 
@@ -167,24 +157,34 @@ class MarkerFollower:
   def run(self):
     rate = rospy.Rate(10) # 10 Hz
 
-    print('******************** In Marker Follower Run ********************')
-    
-    # Define the message to display on the panel
-    display_message = "Do you want to move the UGV?"
-
-    # Make the service call, and it will block here until a response is received.
-    response = self.user_reaction_service(display_message)
-
-    ''''''
-    # Check the response
-    if response.approved:
-      print('User wants to Move the UGV.')
-    else:
-      print('User does not want to Move the UGV.')
-      self.user_reaction_service.shutdown()
-    
-      
     while not rospy.is_shutdown():
+      if not self.marker_pose is None: # camera is up
+        # Wait for the user reaction service
+        # print('****************** waiting for service *****************************')
+        rospy.wait_for_service('user_reaction')
+        # Create a proxy for the service
+        self.user_reaction_service = rospy.ServiceProxy('user_reaction', welding_msgs.srv.InteractService1)
+
+        # Define the message to display on the panel
+        display_message = "Do you want to move the UGV?"
+
+        # Make the service call, and it will block here until a response is received.
+        print('********************** Going to request a service ***********************')
+        response = self.user_reaction_service(display_message)
+        print('******************* A service has been requested. **********************')
+
+        # Check the response
+        if response.approved:
+          print('User wants to Move the UGV.')
+        else:
+          print('User does not want to Move the UGV.')
+
+        # Shutdown the service after use
+        # self.user_reaction_service.shutdown() # The service cannot be shutdown from the Client side!
+
+        # exit the loop
+        break
+
       rate.sleep()
 
 

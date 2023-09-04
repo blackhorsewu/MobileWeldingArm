@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(rviz_interact_panel)
 
 # Find Qt5
-find_package(Qt5 COMPONENTS Widgets REQUIRED)
+find_package(Qt5 COMPONENTS Core Gui Widgets Concurrent REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
   rviz
@@ -29,7 +29,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # Build Interact Panel
 add_library(interact_panel src/interact_panel.cpp)
-target_link_libraries(interact_panel ${catkin_LIBRARIES} Qt5::Widgets)
+target_link_libraries(interact_panel ${catkin_LIBRARIES} Qt5::Widgets Qt5::Concurrent)
 
 install(FILES plugin_description.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
