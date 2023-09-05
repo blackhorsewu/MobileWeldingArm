@@ -94,6 +94,8 @@ bool InteractPanel::userReactionCallback(welding_msgs::InteractService1::Request
         rate.sleep();
     }
 
+    emit updateDisplaySignal(QString::fromStdString(""));
+
     res.approved = approval_status_; // return Yes or No
     return true;
 }
