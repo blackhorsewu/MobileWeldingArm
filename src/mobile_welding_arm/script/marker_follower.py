@@ -69,6 +69,9 @@ class MarkerFollower:
     # Publisher for the velocity command to move the UGV
     # self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
 
+    # Distance from marker to target
+    self.distance = distance
+
     # Names of the source and target frames
     self.camera_frame = 'd435_color_optical_frame'
     self.odom_frame = 'odom'
@@ -86,8 +89,10 @@ class MarkerFollower:
     
     # Project the 3D position of the marker-pose onto the X-Y plane
     target_pose = PoseStamped()
-    target_pose.pose.position.x = self.marker_pose.pose.position.x - marker_pose.pose.position.z
-    target_pose.pose.position.y = self.marker_pose.pose.position.y + marker_pose.pose.position.x
+    # target_pose.pose.position.x = self.marker_pose.pose.position.x - marker_pose.pose.position.z
+    target_pose.pose.position.x = self.marker_pose.pose.position.x - self.distance
+    # target_pose.pose.position.y = self.marker_pose.pose.position.y + marker_pose.pose.position.x
+    target_pose.pose.position.y = self.marker_pose.pose.position.y
     target_pose.pose.position.z = 0 # it is on the X-Y plane therefore z = 0
 
     # Project the 3D orientation to 2D orientation
@@ -99,7 +104,7 @@ class MarkerFollower:
     
     # Extract the X and Y components of the marker's Z-axis
     # The Z-axis of the marker lies on the X-Y plane
-    target_x_axis = [-marker_matrix[2, 0], 0, 0] 
+    target_x_axis = [-marker_matrix[2, 0], 0, 0]
     target_y_axis = [0, marker_matrix[2, 1], 0] 
     target_z_axis = [0, 0, 0] # Nothing for the Z-axis for the X-Y plane
 
@@ -179,8 +184,7 @@ class MarkerFollower:
         else:
           print('User does not want to Move the UGV.')
 
-        # Shutdown the service after use
-        # self.user_reaction_service.shutdown() # The service cannot be shutdown from the Client side!
+        # The service cannot be shutdown from the Client side!
 
         # exit the loop
         break
