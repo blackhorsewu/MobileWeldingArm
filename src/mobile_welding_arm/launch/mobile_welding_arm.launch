@@ -70,6 +70,8 @@
   
   <!--
     Launch the Welding System
+    distance is the distance from marker to camera optical frame
+    that should be 28cm or 0.28m
   -->
   
   <node pkg="mobile_welding_arm"
@@ -81,7 +83,7 @@
     <param name="color_camera1_model" value="d435" />
     <param name="depth_camera1_model" value="d435" />
     <param name="view_joints" value="[-0.0524, -1.1756, -2.6466, 0.8147, 1.5948, 0.0049]" />
-    <param name="distance" value="1.30" />
+    <param name="distance" value="0.28" /> 
   </node>
 
   <!-- launch the marker_pose node -->
