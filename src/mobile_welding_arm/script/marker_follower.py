@@ -22,6 +22,7 @@ import rospy
 import tf2_ros
 import tf2_geometry_msgs
 import math
+from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist, PoseStamped, TransformStamped
 from aruco_msgs.msg import MarkerArray
 from simple_pid import PID
@@ -60,14 +61,14 @@ class MarkerFollower:
     self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
     # Subscribe the Marker's pose, in the camera frame
-    self.marker_sub = rospy.Subscriber('/marker_pose_stamped', PoseStamped, self.callback)
+    self.marker_sub = rospy.Subscriber('/marker_pose_stamped', PoseStamped, self.marker_callback)
 
     # Publisher for the pose of the target and current Robot base
     self.target_pub = rospy.Publisher('/target_pose', PoseStamped, queue_size=1)
     self.current_pub = rospy.Publisher('/current_pose', PoseStamped, queue_size=1)
 
     # Publisher for the velocity command to move the UGV
-    # self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+    self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
 
     # Distance from marker to target
     self.distance = distance
@@ -80,6 +81,41 @@ class MarkerFollower:
 
     # Setup an empty target pose
     self.marker_pose = None
+
+    # Initialize Emergency Stop status
+    self.estop_triggered = False
+
+    # Subscribe to Emergency Stop
+    rospy.Subscriber('/estop', Bool, self.estop_callback)
+
+  def emergency_stop_publisher(self):
+
+    # Create a Twist message with zero velocities
+    stop_msg = Twist()
+    stop_msg.linear.x = 0.0
+    stop_msg.linear.y = 0.0
+    stop_msg.linear.z = 0.0
+    stop_msg.angular.x = 0.0
+    stop_msg.angular.y = 0.0
+    stop_msg.angular.z = 0.0
+
+    # Update status
+    self.estop_triggered = True
+
+    # Publish the stop message
+    self.cmd_vel_pub.publish(stop_msg)
+    rospy.loginfo("Emergency Stop Triggered! Publishing zero velocities.")
+  
+  def estop_callback(self, data):
+    if data.data:
+      # E-stop triggered. Take necessary actions;
+      rospy.loginfo("Emergency Stop Triggered!")
+      # Add code to stop UGV
+      self.emergency_stop_publisher();
+    else:
+      # Normal operation or E-stop reset.
+      self.estop_triggered = False
+      rospy.loginfo("Normal Operation")
 
   def calculate_target_pose(self, marker_pose):
     # Calculate the Dynamic Target Pose, in ODOM frame
@@ -123,7 +159,7 @@ class MarkerFollower:
     
     return target_pose
 
-  def callback(self, marker_pose):
+  def marker_callback(self, marker_pose):
     # This pose is always the Marker pose with reference to the Camera
     # This function will be called every time a new Pose message is received
 

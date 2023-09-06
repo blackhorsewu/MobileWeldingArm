@@ -70,7 +70,7 @@ void EStopPanel::onResetButtonClicked()  // New reset handler
     blink_timer_->stop(); // Stop blinking
     estop_button_->setStyleSheet("background-color: green; border-radius: 40px;"); // Reset appearance
     std_msgs::Bool msg;
-    msg.data = true;
+    msg.data = false;
     estop_pub_.publish(msg);
   }
 }

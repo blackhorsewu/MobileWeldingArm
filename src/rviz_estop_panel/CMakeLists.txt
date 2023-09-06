@@ -4,16 +4,24 @@ project(rviz_estop_panel)
 # Find Qt5
 find_package(Qt5 COMPONENTS Widgets REQUIRED)
 
+# Find catkinmacros and libraries
 find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  std_msgs
   rviz
   pluginlib
 )
 
+# Declare our catkin package
 catkin_package()
 
+# Specify locations of hearder files
 include_directories(
   ${catkin_INCLUDE_DIRS}
 )
+
+# Declare the C++ executable
+# add_executable(rviz_estop_panel src/estop_panel.cpp)
 
 # Use Qt5 to add the necessary include directories and compile definitions
 set(CMAKE_AUTOMOC ON)
