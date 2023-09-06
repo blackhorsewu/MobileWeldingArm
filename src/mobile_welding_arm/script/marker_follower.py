@@ -51,10 +51,9 @@ class MarkerFollower:
 
   def __init__(self, distance):
 
-    # Do not bother about the PID control first
     # PID Controller for controlling the UGV
-    # self.pid_x = PID(Kp=1.0, Ki=0.1, Kd=0.01)
-    # self.pid_y = PID(Kp=1.0, Ki=0.1, Kd=0.01)
+    self.pid_linear = PID(Kp=1.0, Ki=0.1, Kd=0.01)
+    self.pid_angular = PID(Kp=1.0, Ki=0.1, Kd=0.01)
 
     # Create a Buffer and a TransformListener for tf2 lookup
     self.tf_buffer = tf2_ros.Buffer()
@@ -116,6 +115,36 @@ class MarkerFollower:
       # Normal operation or E-stop reset.
       self.estop_triggered = False
       rospy.loginfo("Normal Operation")
+
+  def move_to_target(self, current_pose, target_pose):
+    # Calculate distance error (linear error)
+    dx = target_pose.position.x - current_pose.position.x
+    dy = target_pose.position.y - current_pose.position.y
+    distance_error = math.sqrt(dx**2 + dy**2)
+
+    # Calculate angular error
+    current_yaw = self.get_yaw_from_quaternion(current_pose.orientation)
+    target_yaw = self.get_yam_from_quaternion(target_pose.orientaton)
+    angular_error = target_yaw - current_yaw
+
+    # Get control commands from PID controllers
+    linear_velocity = self.pid_linear(distance_error)
+    angular_velocity = self.pid_angular(angular_error)
+
+    # Populate the Twist message
+    cmd = Twist()
+    cmd.linear.x = linear_velocity
+    cmd.angular.z = angular_velocity
+
+    # Publish the command
+    self.cmd_vel_pub.publish(cmd)
+
+  @staticmethod
+  def get_yaw_from_quaternion(orientation):
+    # Convert quaternion to euler using scipy
+    r = R.from_quat([orientation.x, orientation.y, orientation.z, orientation.w])
+    euler = r.as_euler('zyx', degrees=False) # 'zyx' means the intrinsic rotation sequence
+    return euler[0] # Return yaw (which is the 'z' rotation in the 'zyx' sequence)
 
   def calculate_target_pose(self, marker_pose):
     # Calculate the Dynamic Target Pose, in ODOM frame
@@ -217,6 +246,7 @@ class MarkerFollower:
         # Check the response
         if response.approved:
           print('User wants to Move the UGV.')
+          self.move_to_target()
         else:
           print('User does not want to Move the UGV.')
 
