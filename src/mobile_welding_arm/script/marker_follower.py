@@ -37,7 +37,8 @@ from my_utilities import invert_transform
 from scipy.spatial.transform import Rotation as R
 
 import welding_msgs.srv 
-from welding_msgs.srv import InteractService1
+POSITION_THRESHOLD = 0.01 # Acceptable position error in meters (1cm)
+ORIENTATION_THRESHOLD = 0.05 # Acceptable orientation error in radians (2.8 degree)
 
 '''
 # Initialize the node and publishers/subscribers
@@ -52,8 +53,8 @@ class MarkerFollower:
   def __init__(self, distance):
 
     # PID Controller for controlling the UGV
-    self.pid_linear = PID(Kp=1.0, Ki=0.1, Kd=0.01)
-    self.pid_angular = PID(Kp=1.0, Ki=0.1, Kd=0.01)
+    self.pid_linear = PID(Kp=0.05, Ki=0.0, Kd=0.00)
+    self.pid_angular = PID(Kp=0.01, Ki=0.0, Kd=0.00)
 
     # Create a Buffer and a TransformListener for tf2 lookup
     self.tf_buffer = tf2_ros.Buffer()
@@ -78,8 +79,14 @@ class MarkerFollower:
     self.robot_base = 'base'
     self.ugv_frame = 'bunker_pro_base_link'
 
-    # Setup an empty target pose
+    # Setup an empty marker pose in 'odom' frame
     self.marker_pose = None
+
+    # Setup the current pose in 'odom' frame
+    self.current_pose = None
+
+    # Setup the target pose in 'odom' frame
+    self.target_pose = None
 
     # Initialize Emergency Stop status
     self.estop_triggered = False
@@ -118,13 +125,13 @@ class MarkerFollower:
 
   def move_to_target(self, current_pose, target_pose):
     # Calculate distance error (linear error)
-    dx = target_pose.position.x - current_pose.position.x
-    dy = target_pose.position.y - current_pose.position.y
+    dx = target_pose.pose.position.x - current_pose.pose.position.x
+    dy = target_pose.pose.position.y - current_pose.pose.position.y
     distance_error = math.sqrt(dx**2 + dy**2)
 
     # Calculate angular error
-    current_yaw = self.get_yaw_from_quaternion(current_pose.orientation)
-    target_yaw = self.get_yam_from_quaternion(target_pose.orientaton)
+    current_yaw = self.get_yaw_from_quaternion(current_pose.pose.orientation)
+    target_yaw = self.get_yaw_from_quaternion(target_pose.pose.orientation)
     angular_error = target_yaw - current_yaw
 
     # Get control commands from PID controllers
@@ -140,11 +147,58 @@ class MarkerFollower:
     self.cmd_vel_pub.publish(cmd)
 
   @staticmethod
+  def calculate_position_error(current_pose, target_pose):
+    dx = target_pose.pose.position.x - current_pose.pose.position.x
+    dy = target_pose.pose.position.y - current_pose.pose.position.y
+    return math.sqrt(dx**2 + dy**2)
+
+  @staticmethod
+  def calculate_orientation_error(current_pose, target_pose):
+    current_yaw = MarkerFollower.get_yaw_from_quaternion(current_pose.pose.orientation)
+    target_yaw = MarkerFollower.get_yaw_from_quaternion(target_pose.pose.orientation)
+    return abs(target_yaw - current_yaw)
+
+  @staticmethod
   def get_yaw_from_quaternion(orientation):
     # Convert quaternion to euler using scipy
     r = R.from_quat([orientation.x, orientation.y, orientation.z, orientation.w])
     euler = r.as_euler('zyx', degrees=False) # 'zyx' means the intrinsic rotation sequence
     return euler[0] # Return yaw (which is the 'z' rotation in the 'zyx' sequence)
+
+  def control_loop(self):
+    rate = rospy.Rate(10) # 10 Hz
+    while not rospy.is_shutdown() and not self.estop_triggered:
+
+      print('****************** In control loop. *********************')
+      # Lookup the current pose of the UGV, actually the current pose of the camera
+      try:
+        transform = self.tf_buffer.lookup_transform(self.odom_frame, self.camera_frame, rospy.Time(0))
+        self.current_pose = PoseStamped()
+        self.current_pose.pose.position.x = transform.transform.translation.x
+        self.current_pose.pose.position.y = transform.transform.translation.y
+        self.current_pose.pose.position.z = transform.transform.translation.z
+        self.current_pose.pose.orientation.x = transform.transform.rotation.x
+        self.current_pose.pose.orientation.y = transform.transform.rotation.y
+        self.current_pose.pose.orientation.z = transform.transform.rotation.z
+        self.current_pose.pose.orientation.w = transform.transform.rotation.w
+        self.current_pose.header = transform.header
+      except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+        rospy.logerror("Failed to get current camera pose from tf")
+        continue
+
+      if self.current_pose and self.target_pose:
+        print('******************* Both current and target pose are available. ******************')
+        self.move_to_target(self.current_pose, self.target_pose)
+
+        # Check if UGV is close enough to target
+        position_error = self.calculate_position_error(self.current_pose, self.target_pose)
+        orientation_error = self.calculate_orientation_error(self.current_pose, self.target_pose)
+
+        if position_error < POSITION_THRESHOLD and orientation_error < ORIENTATION_THRESHOLD:
+          rospy.loginfo("Target reached!")
+          break # Exit the loop if target is reached
+
+      rate.sleep()
 
   def calculate_target_pose(self, marker_pose):
     # Calculate the Dynamic Target Pose, in ODOM frame
@@ -158,7 +212,7 @@ class MarkerFollower:
     target_pose.pose.position.x = self.marker_pose.pose.position.x - self.distance
     # target_pose.pose.position.y = self.marker_pose.pose.position.y + marker_pose.pose.position.x
     target_pose.pose.position.y = self.marker_pose.pose.position.y
-    target_pose.pose.position.z = 0 # it is on the X-Y plane therefore z = 0
+    target_pose.pose.position.z = self.marker_pose.pose.position.z
 
     # Project the 3D orientation to 2D orientation
     # Convert marker's orientation to rotation matrix
@@ -216,13 +270,13 @@ class MarkerFollower:
       # print('marker pose: ', self.marker_pose)
       print('*********************** marker pose has been setup. *************************************')
 
-    target_pose = self.calculate_target_pose(marker_pose)
+    self.target_pose = self.calculate_target_pose(marker_pose)
 
     # Publish the Dynamic Target Pose in RViz
-    self.target_pub.publish(target_pose)
+    self.target_pub.publish(self.target_pose)
 
     # Calculate the CURRENT_pose for "base" of ROBOT
-    current_pose = self.tf_buffer.lookup_transform(self.camera_frame, self.robot_base, rospy.Time(0))
+    self.current_pose = self.tf_buffer.lookup_transform(self.camera_frame, self.robot_base, rospy.Time(0))
 
   def run(self):
     rate = rospy.Rate(10) # 10 Hz
@@ -246,7 +300,9 @@ class MarkerFollower:
         # Check the response
         if response.approved:
           print('User wants to Move the UGV.')
-          self.move_to_target()
+          # self.move_to_target()
+
+          self.control_loop()
         else:
           print('User does not want to Move the UGV.')
 
