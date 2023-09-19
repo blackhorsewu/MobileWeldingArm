@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!-- 
+    The UGV is only simulated and used to tune the PID Controller 
+-->
+<launch>
+    <!-- start the bunker pro base and load model -->
+    <include file="$(find ugv_simulation)/src/bunker_pro/launch/bunker_pro_base_sim.launch">
+        <arg name="simulated_robot" value="true" />
+        <arg name="control_rate" value="50" />
+        <arg name="publish_tf" value="true" />
+    </include>
+</launch>

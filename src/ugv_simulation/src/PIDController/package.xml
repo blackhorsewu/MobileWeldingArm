@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>PIDController</name>
+  <version>0.0.1</version>
+  <description>The PIDController package</description>
+
+  <maintainer email="victor.wh.wu@polyu.edu.hk">Victor Wu</maintainer>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>rospy</build_depend>
+  <exec_depend>rospy</exec_depend>
+
+  <export>
+  </export>
+</package>

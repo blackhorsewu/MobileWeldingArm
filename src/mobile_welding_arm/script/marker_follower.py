@@ -117,7 +117,7 @@ class MarkerFollower:
       # E-stop triggered. Take necessary actions;
       rospy.loginfo("Emergency Stop Triggered!")
       # Add code to stop UGV
-      self.emergency_stop_publisher();
+      self.emergency_stop_publisher()
     else:
       # Normal operation or E-stop reset.
       self.estop_triggered = False

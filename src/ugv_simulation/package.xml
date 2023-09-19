@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>ugv_simulation</name>
+  <version>0.0.1</version>
+  <description>The ugv_simulation package</description>
+
+  <maintainer email="victor.wh.wu@polyu.edu.hk">Victor Wu</maintainer>
+
+  <license>BSD</license>
+
+  <depend>ugv_sdk</depend>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>rospy</build_depend>
+
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>rospy</exec_depend>
+
+  <export>
+  </export>
+</package>
+
