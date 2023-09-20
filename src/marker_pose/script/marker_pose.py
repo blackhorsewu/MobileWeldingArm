@@ -26,6 +26,8 @@
 '''
 
 import rospy
+import tf2_ros
+import tf2_geometry_msgs
 import cv2
 from cv_bridge import CvBridge
 import numpy as np
@@ -131,6 +133,13 @@ class MarkerDetector:
       pose_stamped.pose = pose_msg
       pose_stamped.header.frame_id = 'd435_color_optical_frame'
       pose_stamped.header.stamp = rospy.Time.now()
+
+      try:
+        self.Tc2o = self.tf_buffer.lookup_transform(self.odom_frame, self.camera_optical_frame, rospy.Time(0))
+      except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+        rospy.logerr("Transformation not available!")
+
+      pose_stamped = tf2_geometry_msgs.do_transform_pose(pose_stamped, self.Tc2o)
       self.poseStamped_pub.publish(pose_stamped)
 
     else:
@@ -156,6 +165,14 @@ class MarkerDetector:
 
     # Create a CV bridge
     self.bridge = CvBridge()
+
+    # Create a Buffer and a TransformListener for tf2 lookup
+    self.tf_buffer = tf2_ros.Buffer()
+    self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+    
+    # Names of the source and target frames
+    self.odom_frame = 'odom'
+    self.camera_optical_frame = 'd435_color_optical_frame'
 
     # Subscribe to the camera info and image topics
     self.info_subscriber = rospy.Subscriber('/d435/color/camera_info', CameraInfo, self.camera_info_callback, queue_size=10)
