@@ -37,8 +37,8 @@ from my_utilities import invert_transform
 from scipy.spatial.transform import Rotation as R
 
 import welding_msgs.srv 
-LINEAR_THRESHOLD = 0.01 # Acceptable position error in meters (1cm)
-ANGULAR_THRESHOLD = 0.05 # Acceptable orientation error in radians (2.8 degree)
+LINEAR_THRESHOLD = 0.025 # Acceptable position error in meters (1cm)
+ANGULAR_THRESHOLD = 0.025 # Acceptable orientation error in radians (2.8 degree)
 
 '''
 # Initialize the node and publishers/subscribers
@@ -69,8 +69,8 @@ class MarkerFollower:
   def __init__(self, distance):
 
     # PID Controller for controlling the UGV
-    self.linear_pid = PID(kp=0.05, ki=0.0, kd=0.00)
-    self.angular_pid = PID(kp=0.01, ki=0.0, kd=0.00)
+    self.linear_pid = PID(kp=0.2, ki=0.0, kd=0.00)
+    self.angular_pid = PID(kp=0.5, ki=0.0, kd=0.00)
 
     # Create a Buffer and a TransformListener for tf2 lookup
     self.tf_buffer = tf2_ros.Buffer()
@@ -150,7 +150,7 @@ class MarkerFollower:
       rospy.loginfo("Normal Operation")
 
   def get_current_pose(self):
-    # Lookup the current pose of the UGV, actually the current pose of the camera color frame
+    # Lookup the current pose of the camera color frame
     try:
       transform = self.tf_buffer.lookup_transform(self.odom_frame, self.camera_frame, rospy.Time(0))
       current_pose = PoseStamped()
@@ -167,44 +167,6 @@ class MarkerFollower:
       rospy.logerror("Failed to get current camera pose from tf")
       return None
 
-
-
-  def move_to_target(self, current_pose, target_pose):
-    # Calculate distance error (linear error)
-    dx = target_pose.pose.position.x - current_pose.pose.position.x
-    dy = target_pose.pose.position.y - current_pose.pose.position.y
-    distance_error = math.sqrt(dx**2 + dy**2)
-
-    # Calculate angular error
-    current_yaw = self.get_yaw_from_quaternion(current_pose.pose.orientation)
-    target_yaw = self.get_yaw_from_quaternion(target_pose.pose.orientation)
-    angular_error = target_yaw - current_yaw
-
-    # Get control commands from PID controllers
-    linear_velocity = self.pid_linear(distance_error)
-    angular_velocity = self.pid_angular(angular_error)
-
-    # Populate the Twist message
-    cmd = Twist()
-    cmd.linear.x = linear_velocity
-    cmd.angular.z = angular_velocity
-
-    # Publish the command
-    self.cmd_vel_pub.publish(cmd)
-
-  @staticmethod
-  def calculate_orientation_error(current_pose, target_pose):
-    current_yaw = MarkerFollower.get_yaw_from_quaternion(current_pose.pose.orientation)
-    target_yaw = MarkerFollower.get_yaw_from_quaternion(target_pose.pose.orientation)
-    return abs(target_yaw - current_yaw)
-
-  @staticmethod
-  def get_yaw_from_quaternion(orientation):
-    # Convert quaternion to euler using scipy
-    r = R.from_quat([orientation.x, orientation.y, orientation.z, orientation.w])
-    euler = r.as_euler('zyx', degrees=False) # 'zyx' means the intrinsic rotation sequence
-    return euler[0] # Return yaw (which is the 'z' rotation in the 'zyx' sequence)
-
   def get_heading_to_target(self):
     dx = self.target_pose.pose.position.x - self.current_pose.pose.position.x
     dy = self.target_pose.pose.position.y - self.current_pose.pose.position.y
@@ -213,7 +175,7 @@ class MarkerFollower:
   def angular_error(self):
 
     def angle_difference(angle1, angle2):
-      return math.atan2(math.sin(angle1 - angle2), math.cos(angle1, angle2))
+      return math.atan2(math.sin(angle1 - angle2), math.cos(angle1 - angle2))
 
     # Convert target quaternion to yaw using tf.transformations
     target_quaternion = (
@@ -236,14 +198,14 @@ class MarkerFollower:
     current_yaw = euler[2]
 
     # Compute the Heading Error
-    heading_error = angle_difference(target_yaw, current_yaw)
+    angular_error = angle_difference(target_yaw, current_yaw)
 
-    return heading_error
+    return angular_error
 
   def heading_error(self):
 
     def angle_difference(angle1, angle2):
-      return math.atan2(math.sin(angle1 - angle2), math.cos(angle1, angle2))
+      return math.atan2(math.sin(angle1 - angle2), math.cos(angle1 - angle2))
 
     # Determine the Target Yaw (or Heading)
     target_yaw = self.get_heading_to_target()
@@ -270,7 +232,9 @@ class MarkerFollower:
 
   def control_ugv(self):
 
+    # print('In control ugv.')
     self.current_pose = self.get_current_pose()
+    # print('Current pose: ', self.current_pose)
     if not self.current_pose:
       return
     
@@ -280,11 +244,17 @@ class MarkerFollower:
     linear_correction = 0
     angular_correction = 0
 
+    linear_error = self.linear_error()
+    heading_error = self.heading_error()
+    # angular_error = self.angular_error()
+
     # Target position reached
+    print('Target position reached: ', self.target_position_reached)
     if self.target_position_reached:
       angular_error = self.angular_error()
       # Orientation is correct
-      if angular_error < ANGULAR_THRESHOLD:
+      print('Angular error: ', angular_error)
+      if abs(angular_error) < ANGULAR_THRESHOLD:
         # Target Pose reached
         self.done = True
       else:
@@ -292,21 +262,33 @@ class MarkerFollower:
         angular_correction = self.angular_pid.compute(angular_error)
     else:
       # Target position not reached yet
+      print('Heading yaw reached: ', self.heading_yaw_reached)
       if self.heading_yaw_reached:
         # Keep going forward
         linear_error = self.linear_error()
-        linear_correction = self.linear_pid.compute(linear_error)
+        print('Linear error: ', linear_error)
+        if abs(linear_error) < LINEAR_THRESHOLD:
+          self.target_position_reached = True
+        else:
+          linear_correction = self.linear_pid.compute(linear_error)
       else:
         # Not in the right direction towards target position yet
         # Keep turning
         heading_error = self.heading_error()
-        if heading_error >= ANGULAR_THRESHOLD:
+        print('Heading error: ', heading_error)
+        if abs(heading_error) >= ANGULAR_THRESHOLD:
           angular_correction = self.angular_pid.compute(heading_error)
         else:
+          print('Heading error: ', heading_error)
           self.heading_yaw_reached = True
           # Already in the right direction, keep going forward
           linear_error = self.linear_error()
+          print('Linear error: ', linear_error)
           linear_correction = self.linear_pid.compute(linear_error)
+
+    print('Linear correction: ', linear_correction)
+    print('Angular correction: ', angular_correction)
+    print('=================')
 
     if not self.estop_triggered and not self.done:
       twist = Twist()
@@ -358,7 +340,7 @@ class MarkerFollower:
     # Complete the PoseStamped format (header)
     target_pose.header.frame_id = self.odom_frame
     target_pose.header.stamp = rospy.Time.now()
-    
+
     return target_pose
 
   def marker_callback(self, marker_pose):
@@ -378,11 +360,24 @@ class MarkerFollower:
 
     self.target_pose = self.calculate_target_pose(marker_pose)
 
-    # Publish the Dynamic Target Pose in RViz
+    # Publish the Target Pose in RViz
     self.target_pub.publish(self.target_pose)
 
     # Calculate the CURRENT_pose for "base" of ROBOT
-    self.current_pose = self.tf_buffer.lookup_transform(self.camera_frame, self.robot_base, rospy.Time(0))
+    transform = self.tf_buffer.lookup_transform(self.odom_frame, self.camera_frame, rospy.Time(0))
+    self.current_pose = PoseStamped()
+    self.current_pose.pose.position.x = transform.transform.translation.x
+    self.current_pose.pose.position.y = transform.transform.translation.y
+    self.current_pose.pose.position.z = transform.transform.translation.z
+    self.current_pose.pose.orientation.x = transform.transform.rotation.x
+    self.current_pose.pose.orientation.y = transform.transform.rotation.y
+    self.current_pose.pose.orientation.z = transform.transform.rotation.z
+    self.current_pose.pose.orientation.w = transform.transform.rotation.w
+    self.current_pose.header = transform.header
+
+    # Unregister the marker_pose subscriber
+    self.marker_sub.unregister()
+    # Hopefully, this fix the marker and the target pose.
 
   def run(self):
     rate = rospy.Rate(10) # 10 Hz
@@ -408,12 +403,16 @@ class MarkerFollower:
         if response.approved:
           print('User wants to Move the UGV.')
           # self.move_to_target()
+          print('Done: ', self.done)
 
           while not rospy.is_shutdown() and not self.done:
             self.control_ugv()
             rate.sleep()
         else:
           print('User does not want to Move the UGV.')
+          print('Marker pose: ', self.marker_pose)
+          print('Target pose: ', self.target_pose)
+          print('Current pose: ', self.current_pose)
 
         # The service cannot be shutdown from the Client side!
 

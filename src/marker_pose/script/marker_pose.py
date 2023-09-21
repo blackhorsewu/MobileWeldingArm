@@ -142,8 +142,8 @@ class MarkerDetector:
       pose_stamped = tf2_geometry_msgs.do_transform_pose(pose_stamped, self.Tc2o)
       self.poseStamped_pub.publish(pose_stamped)
 
-    else:
-      print('******************** No markers detected! ******************')
+    # else:
+      # print('******************** No markers detected! ******************')
 
   def run(self):
     rate = rospy.Rate(10) # 10 Hz
