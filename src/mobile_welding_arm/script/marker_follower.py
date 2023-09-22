@@ -194,8 +194,14 @@ class MarkerFollower:
       self.current_pose.pose.orientation.z,
       self.current_pose.pose.orientation.w
     )
+    current_r = R.from_quat(current_quaternion)
+    current_mat = current_r.as_matrix()
+    current_x_axis = current_mat[0]
+    current_yaw_angle = math.atan2(current_x_axis[1], current_x_axis[0])
+    print("current_yaw_angle: ", current_yaw_angle)
     euler = tf.transformations.euler_from_quaternion(current_quaternion)
     current_yaw = euler[2]
+    print("current_yaw: ", current_yaw)
 
     # Compute the Heading Error
     angular_error = angle_difference(target_yaw, current_yaw)
@@ -217,8 +223,14 @@ class MarkerFollower:
       self.current_pose.pose.orientation.z,
       self.current_pose.pose.orientation.w
     )
+    current_r = R.from_quat(quaternion)
+    current_mat = current_r.as_matrix()
+    current_x_axis = current_mat[0]
+    current_yaw_angle = math.atan2(current_x_axis[1], current_x_axis[0])
+    print("current_yaw_angle: ", current_yaw_angle)
     euler = tf.transformations.euler_from_quaternion(quaternion)
     current_yaw = euler[2]
+    print("current_yaw: ", current_yaw)
 
     # Compute the Heading Error
     heading_error = angle_difference(target_yaw, current_yaw)
