@@ -153,10 +153,17 @@ class MarkerFollower:
     # Lookup the current pose of the camera color frame
     try:
       transform = self.tf_buffer.lookup_transform(self.odom_frame, self.camera_frame, rospy.Time(0))
+      
+      current_quaternion = (transform.transform.rotation.x, transform.transform.rotation.y,
+                            transform.transform.rotation.z, transform.transform.rotation.x)
+      r = R.from_quat(current_quaternion)
+      current_matrix = r.as_matrix
+
       current_pose = PoseStamped()
       current_pose.pose.position.x = transform.transform.translation.x
       current_pose.pose.position.y = transform.transform.translation.y
-      current_pose.pose.position.z = transform.transform.translation.z
+      current_pose.pose.position.y = transform.transform.translation.z
+      # current_pose.pose.position.z = 0.0
       current_pose.pose.orientation.x = transform.transform.rotation.x
       current_pose.pose.orientation.y = transform.transform.rotation.y
       current_pose.pose.orientation.z = transform.transform.rotation.z
@@ -165,7 +172,9 @@ class MarkerFollower:
       return current_pose
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
       rospy.logerror("Failed to get current camera pose from tf")
-      return None
+
+    self.current_pub.publish(self.current_pose)
+    return None
 
   def get_heading_to_target(self):
     dx = self.target_pose.pose.position.x - self.current_pose.pose.position.x
@@ -211,12 +220,18 @@ class MarkerFollower:
   def heading_error(self):
 
     def angle_difference(angle1, angle2):
+      print('angle1 - angle2: ', angle1 - angle2)
+      print('sin(angle1 - angle2): ', math.sin(angle1 - angle2))
+      print('cos(angle1 - angle2): ', math.cos(angle1 - angle2))
+      print('arc tan (sin, cos): ', math.atan2(math.sin(angle1 - angle2), math.cos(angle1 - angle2)))
       return math.atan2(math.sin(angle1 - angle2), math.cos(angle1 - angle2))
 
     # Determine the Target Yaw (or Heading)
-    target_yaw = self.get_heading_to_target()
+    # target_yaw = self.get_heading_to_target()
+    target_yaw = math.atan2(self.target_pose.pose.position.y, self.target_pose.pose.position.x)
+    print('target yaw: ', target_yaw)
 
-    # Convert quaternion to yaw using tf.transformations
+    # Convert current quaternion to yaw using tf.transformations
     quaternion = (
       self.current_pose.pose.orientation.x,
       self.current_pose.pose.orientation.y,
@@ -343,6 +358,7 @@ class MarkerFollower:
     target_pose.pose.position.x = target_position[0]
     target_pose.pose.position.y = target_position[1]
     target_pose.pose.position.z = target_position[2]
+    # target_pose.pose.position.z = 0.0
     # Set the target orientation
     target_pose.pose.orientation.x = marker_quaternion[0]
     target_pose.pose.orientation.y = marker_quaternion[1]
@@ -354,6 +370,19 @@ class MarkerFollower:
     target_pose.header.stamp = rospy.Time.now()
 
     return target_pose
+
+  '''
+  def calculate_current_pose(self, transform):
+    self.current_pose = PoseStamped()
+    self.current_pose.pose.position.x = transform.transform.translation.x
+    self.current_pose.pose.position.y = transform.transform.translation.y
+    self.current_pose.pose.position.z = transform.transform.translation.z
+    self.current_pose.pose.orientation.x = transform.transform.rotation.x
+    self.current_pose.pose.orientation.y = transform.transform.rotation.y
+    self.current_pose.pose.orientation.z = transform.transform.rotation.z
+    self.current_pose.pose.orientation.w = transform.transform.rotation.w
+    self.current_pose.header = transform.header
+  '''
 
   def marker_callback(self, marker_pose):
     # This pose is always the Marker pose with reference to the Odom frame 
@@ -375,20 +404,17 @@ class MarkerFollower:
     # Publish the Target Pose in RViz
     self.target_pub.publish(self.target_pose)
 
-    # Calculate the CURRENT_pose for "base" of ROBOT
+    self.current_pose = self.get_current_pose()
+    '''
+    # Use the camera pose in the odom frame as the current pose of the UGV
     transform = self.tf_buffer.lookup_transform(self.odom_frame, self.camera_frame, rospy.Time(0))
-    self.current_pose = PoseStamped()
-    self.current_pose.pose.position.x = transform.transform.translation.x
-    self.current_pose.pose.position.y = transform.transform.translation.y
-    self.current_pose.pose.position.z = transform.transform.translation.z
-    self.current_pose.pose.orientation.x = transform.transform.rotation.x
-    self.current_pose.pose.orientation.y = transform.transform.rotation.y
-    self.current_pose.pose.orientation.z = transform.transform.rotation.z
-    self.current_pose.pose.orientation.w = transform.transform.rotation.w
-    self.current_pose.header = transform.header
+
+    # Calculate the current_pose on the X-Y plane
+    self.current_pose = self.calculate_current_pose(transform.transform)
+    '''
 
     # Unregister the marker_pose subscriber
-    self.marker_sub.unregister()
+    # self.marker_sub.unregister()
     # Hopefully, this fix the marker and the target pose.
 
   def run(self):
@@ -419,7 +445,8 @@ class MarkerFollower:
 
           while not rospy.is_shutdown() and not self.done:
             self.control_ugv()
-            rate.sleep()
+            input('Next step, enter.')
+            # rate.sleep()
         else:
           print('User does not want to Move the UGV.')
           print('Marker pose: ', self.marker_pose)
