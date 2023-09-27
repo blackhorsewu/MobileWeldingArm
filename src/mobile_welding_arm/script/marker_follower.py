@@ -10,10 +10,13 @@
   Author: Victor W H Wu
   Date: 10 August 2023.
 
+  Basically, or preliminary working.
+  Date: 27 September 2023.
+
   File name: marker_follower.py
 
   Description:
-    This python script subscribes to the  pose of the Charuco board centre
+    This python script subscribes to the pose of the Charuco board centre
     as published by marker_pose. This pose will be used to control the UGV.
 
 '''
@@ -25,16 +28,12 @@ import math
 import tf.transformations
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist, PoseStamped
-from aruco_msgs.msg import MarkerArray
-import time
 import numpy as np
-from geometry_msgs.msg import Pose
-from my_utilities import invert_transform
 from scipy.spatial.transform import Rotation as R
 import welding_msgs.srv 
 
-LINEAR_THRESHOLD = 0.025 # Acceptable position error in meters (1cm)
-ANGULAR_THRESHOLD = 0.025 # Acceptable orientation error in radians (2.8 degree)
+LINEAR_THRESHOLD = 0.025 # Acceptable position error in meters (2.5cm)
+ANGULAR_THRESHOLD = 0.025 # Acceptable orientation error in radians (1.43 degree)
 class PID:
     # A Simple PID class 
     def __init__(self, kp, ki, kd):
@@ -81,17 +80,13 @@ class MarkerFollower:
     self.distance = distance
 
     # Names of the source and target frames
-    self.camera_optical_frame = 'd435_color_optical_frame'
     self.camera_frame = 'd435_color_frame' # changed by V Wu on 19 Sep 2023.
     self.odom_frame = 'odom'
-    self.robot_base = 'base' # Base of UR10
     self.ugv_frame = 'bunker_pro_base_link'
 
-    # Setup an empty marker pose in 'odom' frame
+    # Setup an empty poses in 'odom' frame
     self.marker_pose = None
-    # Setup the current pose in 'odom' frame
     self.current_pose = None
-    # Setup the target pose in 'odom' frame
     self.camera_target_pose = None
     self.ugv_target_pose = None
 
@@ -101,20 +96,16 @@ class MarkerFollower:
     # attributes for control_ugv
     self.target_position_reached = False
     self.heading_yaw_reached = False
-    self.done = False # target pose reached
+    self.done = False       # target pose reached
     self.target_angular = 0 # orientation of the target pose
     self.target_yaw = 0     # orientation to face target position
 
-    # print('I am here 1.')
     # Look up the transformation from camera to UGV base
     try:
-      self.camera2ugv_transform = self.tf_buffer.lookup_transform(self.camera_frame, 
-                                                                   self.robot_base, 
-                                                                   rospy.Time(0), 
-                                                                   rospy.Duration(1.0))
+      self.camera2ugv_transform = self.tf_buffer.lookup_transform(self.camera_frame, self.ugv_frame, rospy.Time(0), 
+                                                                  rospy.Duration(1.0))
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
       rospy.logerr(e)
-    # print('I am here 2.')
 
   def emergency_stop_publisher(self):
     # Create a Twist message with zero velocities
@@ -143,38 +134,13 @@ class MarkerFollower:
       self.estop_triggered = False
       rospy.loginfo("Normal Operation")
 
-  def project2xy_plane(self, pose_3d):
-
-    # Set z-coordinate to zero for position
-    pose_3d.pose.position.z = 0
-
-    # Get the yaw from the orientation of the pose
-    _, _, yaw = tf.transformations.euler_from_quaternion([
-      pose_3d.pose.orientation.x,
-      pose_3d.pose.orientation.y,
-      pose_3d.pose.orientation.z,
-      pose_3d.pose.orientation.w
-    ])
-
-    # Convert yaw to a quaternion (ignoring roll and pitch)
-    q = tf.transformations.quaternion_from_euler(0, 0, yaw)
-    pose_3d.pose.orientation.x = q[0]
-    pose_3d.pose.orientation.y = q[1]
-    pose_3d.pose.orientation.z = q[2]
-    pose_3d.pose.orientation.w = q[3]
-
-    return pose_3d
-
   def get_current_pose(self):
-
     # Lookup the current pose of the UGV in odom frame
     try:
       transform = self.tf_buffer.lookup_transform(self.odom_frame, self.ugv_frame, rospy.Time(0))
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
       rospy.logerror("Failed to get current camera pose from tf")
       return None
-
-    # print('odom to UGV transform: ', transform)
     # Only construct the current pose if the transform is looked up completed
     current_pose = PoseStamped()
     current_pose.pose.position.x = transform.transform.translation.x
@@ -210,14 +176,14 @@ class MarkerFollower:
                          self.ugv_target_pose.pose.orientation.z, self.ugv_target_pose.pose.orientation.w)
     euler = tf.transformations.euler_from_quaternion(target_quaternion)
     target_yaw = euler[2]
-    print('target_yaw: ', target_yaw)
+    rospy.logdebug('target_yaw: %f', target_yaw)
 
     # Convert current quaternion to Yaw using tf.transformations
     current_quaternion = (self.current_pose.pose.orientation.x, self.current_pose.pose.orientation.y,
                           self.current_pose.pose.orientation.z, self.current_pose.pose.orientation.w)
     euler = tf.transformations.euler_from_quaternion(current_quaternion)
     current_yaw = euler[2]
-    print("current_yaw: ", current_yaw)
+    rospy.logdebug("current_yaw: %f", current_yaw)
 
     # Compute the Angular Error
     angular_error = self.angle_difference(target_yaw, current_yaw)
@@ -228,13 +194,13 @@ class MarkerFollower:
     # Determine the Yaw to face the target position (or Heading)
     # target_yaw = self.get_heading_to_target()
     heading_yaw = math.atan2(self.ugv_target_pose.pose.position.y, self.ugv_target_pose.pose.position.x)
-    print('heading yaw: ', heading_yaw)
+    rospy.logdebug('heading yaw: %f', heading_yaw)
     # Convert current quaternion to yaw using tf.transformations
     current_quaternion = (self.current_pose.pose.orientation.x, self.current_pose.pose.orientation.y,
                           self.current_pose.pose.orientation.z, self.current_pose.pose.orientation.w)
     euler = tf.transformations.euler_from_quaternion(current_quaternion)
     current_yaw = euler[2]
-    print("current_yaw: ", current_yaw)
+    rospy.logdebug("current_yaw: %f", current_yaw)
     # Compute the Heading Error
     heading_error = self.angle_difference(heading_yaw, current_yaw)
     return heading_error
@@ -246,9 +212,7 @@ class MarkerFollower:
 
   def control_ugv(self):
 
-    # print('In control ugv.')
     self.current_pose = self.get_current_pose()
-    # print('Current pose: ', self.current_pose)
     if not self.current_pose:
       # No current_pose, nothing can be done!
       return
@@ -263,16 +227,12 @@ class MarkerFollower:
     heading_error = self.heading_error()
     angular_error = self.angular_error()
 
-    print('marker X component: ', self.marker_pose.pose.position.x)
-    print('camera_target_pose.x: ', self.camera_target_pose.pose.position.x)
-    print('ugv_target_pose.x: ', self.ugv_target_pose.pose.position.x)
-
     # Target position reached
-    print('Target position reached: ', self.target_position_reached)
+    rospy.logdebug('Target position reached: %s', self.target_position_reached)
     if self.target_position_reached:
       angular_error = self.angular_error()
       # Orientation is correct
-      print('Angular error: ', angular_error)
+      rospy.logdebug('Angular error: %f', angular_error)
       if abs(angular_error) < ANGULAR_THRESHOLD:
         # Target Pose reached
         self.done = True
@@ -281,11 +241,11 @@ class MarkerFollower:
         angular_correction = self.angular_pid.compute(angular_error)
     else:
       # Target position not reached yet
-      print('Heading yaw reached: ', self.heading_yaw_reached)
+      rospy.logdebug('Heading yaw reached: %s', self.heading_yaw_reached)
       if self.heading_yaw_reached:
         # Keep going forward
         linear_error = self.linear_error()
-        print('Linear error: ', linear_error)
+        rospy.logdebug('Linear error: %f', linear_error)
         if abs(linear_error) < LINEAR_THRESHOLD:
           self.target_position_reached = True
         else:
@@ -294,19 +254,18 @@ class MarkerFollower:
         # Not in the right direction towards target position yet
         # Keep turning
         heading_error = self.heading_error()
-        print('Heading error: ', heading_error)
+        rospy.logdebug('Heading error: %f', heading_error)
         if abs(heading_error) >= ANGULAR_THRESHOLD:
           angular_correction = self.angular_pid.compute(heading_error)
         else:
-          print('Heading error: ', heading_error)
+          rospy.logdebug('Heading error: %f', heading_error)
           self.heading_yaw_reached = True
           # Already in the right direction, keep going forward
           linear_error = self.linear_error()
-          print('Linear error: ', linear_error)
+          rospy.logdebug('Linear error: %f', linear_error)
           linear_correction = self.linear_pid.compute(linear_error)
-    print('Linear correction: ', linear_correction)
-    print('Angular correction: ', angular_correction)
-    print('=================')
+    rospy.logdebug('Linear correction: %f', linear_correction)
+    rospy.logdebug('Angular correction: %f', angular_correction)
     if not self.estop_triggered and not self.done:
       twist = Twist()
       twist.angular.z = angular_correction
@@ -315,6 +274,21 @@ class MarkerFollower:
     return
 
   def calculate_ugv_target_pose(self, marker_pose):
+
+    def project2xy_plane(pose_3d):
+      # Set z-coordinate to zero for position
+      pose_3d.pose.position.z = 0
+      # Get the yaw from the orientation of the pose
+      _, _, yaw = tf.transformations.euler_from_quaternion([pose_3d.pose.orientation.x, pose_3d.pose.orientation.y,
+                                                            pose_3d.pose.orientation.z, pose_3d.pose.orientation.w])
+      # Convert yaw to a quaternion (ignoring roll and pitch)
+      q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+      pose_3d.pose.orientation.x = q[0]
+      pose_3d.pose.orientation.y = q[1]
+      pose_3d.pose.orientation.z = q[2]
+      pose_3d.pose.orientation.w = q[3]
+      return pose_3d
+
     # Project the 3D position of the marker-pose onto the X-Y plane
     camera_target_pose = PoseStamped()
     ugv_target_pose = PoseStamped()
@@ -325,21 +299,18 @@ class MarkerFollower:
                          marker_pose.pose.orientation.z, marker_pose.pose.orientation.w)
     r = R.from_quat(marker_quaternion)
     marker_matrix = r.as_matrix()
-    # Rotate the marker orientation so that 
-    # its Z-axis becomes the negative X-axis, and its Y-axis becomes the Z-axis, and
-    # its X-axis becomes the negative Y-axis
+    # Rotate the marker orientation so that its Z-axis becomes the negative X-axis,
+    # and its Y-axis becomes the Z-axis, and its X-axis becomes the negative Y-axis
     marker_matrix = np.matmul(marker_matrix, ([0, -1, 0], [0, 0, 1], [-1, 0, 0]))
     # Convert the marker matrix back to quaternion for orientation
     r = R.from_matrix(marker_matrix)
     marker_quaternion = r.as_quat()
-    # Subtract the Distance from its new X-axis as the new position
-    # this is where the target should be
+    # Subtract the Distance from its new X-axis as the new position this is where the target should be
     # where marker_matrix[:, 0] is its X-axis
     camera_target_position = marker_position - marker_matrix[:, 0] * self.distance
     camera_target_pose.pose.position.x = camera_target_position[0]
     camera_target_pose.pose.position.y = camera_target_position[1]
-    # camera_target_pose.pose.position.z = camera_target_position[2]
-    camera_target_pose.pose.position.z = 0.0
+    camera_target_pose.pose.position.z = 0.0 # Set the Z coordinate to zero so that it is on X-Y plane
     # Set the target orientation
     camera_target_pose.pose.orientation.x = marker_quaternion[0]
     camera_target_pose.pose.orientation.y = marker_quaternion[1]
@@ -351,47 +322,34 @@ class MarkerFollower:
     self.camera_target_pose = camera_target_pose
     self.camera_target_pub.publish(camera_target_pose)
 
-    # print('Transformation: ', camera2ugv_transform)
     ugv_target_pose = tf2_geometry_msgs.do_transform_pose(camera_target_pose, self.camera2ugv_transform)
     ugv_target_pose.header.frame_id = 'odom'
-    self.ugv_target_pose = self.project2xy_plane(ugv_target_pose)
-    # print('camera_target_pose: ', camera_target_pose)
+    self.ugv_target_pose = project2xy_plane(ugv_target_pose)
     self.ugv_target_pub.publish(ugv_target_pose)
-    # input('Enter to next step.')
     return
 
   def marker_callback(self, marker_pose):
     # This pose is always the Marker pose with reference to the Odom frame 
     # This function will be called every time a new Pose message is received
     # Calculate the marker pose with respect to odom if not done yet
-    # print('I am here 4.')
     if self.marker_pose is None:
       # The first Marker Pose received before the UGV is moved.
-      # print('I am here 5.')
       self.marker_pose = marker_pose
-      # From now on, the Static Marker Pose is with reference to ODOM and that is FIXED
-      print('********** marker pose has been setup. **************')
+      rospy.loginfo('********** marker pose has been setup. **************')
     # Calculate the UGV target pose
-    # print('I am here 6.')
     self.calculate_ugv_target_pose(marker_pose)
     # Publish the Target Pose in RViz
-    # print('I am here 7.')
     self.ugv_target_pub.publish(self.ugv_target_pose)
-    # print('I am here 8.')
     self.current_pose = self.get_current_pose()
-    # print('I am here 9.')
     # Unregister the marker_pose subscriber
     # self.marker_sub.unregister()
-    # Hopefully, this fix the marker and the target pose.
+    # Hopefully, this fixes the marker and the target pose.
 
   def run(self):
-    # print('I am here 3.')
     rate = rospy.Rate(10) # 10 Hz
     # Loop until Camera is up and running
     while not rospy.is_shutdown():
-      # print('I am here 10.')
       if not self.marker_pose is None: # camera is up
-        # print('I am here 11.')
         # Wait for the user reaction service
         rospy.wait_for_service('user_reaction')
         # Create a proxy for the service
@@ -402,17 +360,13 @@ class MarkerFollower:
         response = self.user_reaction_service(display_message)
         # Check the response
         if response.approved:
-          print('User wants to Move the UGV.')
-          # self.move_to_target()
-          print('Done: ', self.done)
+          rospy.loginfo('User wants to Move the UGV.')
+          rospy.loginfo('Done: %s', self.done)
           while not rospy.is_shutdown() and not self.done:
             self.control_ugv()
             input('Next step, enter.')
-            # rate.sleep()
         else:
-          print('User does not want to Move the UGV.')
-        # The service cannot be shutdown from the Client side!
-        # exit the loop
+          rospy.loginfo('User does not want to Move the UGV.')
         break
       rate.sleep()
 

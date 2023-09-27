@@ -10,5 +10,8 @@
     "mutex": "cpp",
     "shared_mutex": "cpp",
     "condition_variable": "cpp"
-  }
+  },
+  "cSpell.words": [
+    "logdebug"
+  ]
 }
