@@ -61,11 +61,14 @@ class MarkerDetector:
 
   def image_callback(self, image):
 
+    # print('I am in image callback.')
     # Check if the intrinsic parameters have been initialized
     # otherwise give up and return
     if self.intrinsic_camera is None or self.distortion is None:
+      # print('I am Image Callback 1.')
       return
 
+    # print('I am Image Callback 2.')
     # print(image)
     cv_image = self.bridge.imgmsg_to_cv2(image, "bgr8")
     gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
@@ -87,6 +90,7 @@ class MarkerDetector:
         self.distortion
       )
 
+      # print('I am Image Callback 3.')
       # Draw the detected ArUco markers (if any) on the image
       # cv2.aruco.drawDetectedMarkers(cv_image, corners, ids)
 
@@ -127,6 +131,7 @@ class MarkerDetector:
       pose_msg.orientation.z = avg_orientation[2]
       pose_msg.orientation.w = avg_orientation[3]
 
+      # print('I am Image Callback 4.')
       self.pose_pub.publish(pose_msg)
       # It has to be PoseStamped in order to publish to the RViz
       pose_stamped = PoseStamped()
@@ -139,8 +144,10 @@ class MarkerDetector:
       except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
         rospy.logerr("Transformation not available!")
 
+      # print('I am Image Callback 5.')
       pose_stamped = tf2_geometry_msgs.do_transform_pose(pose_stamped, self.Tc2o)
       self.poseStamped_pub.publish(pose_stamped)
+      # print('I am Image Callback 6.')
 
     # else:
       # print('******************** No markers detected! ******************')
@@ -151,6 +158,8 @@ class MarkerDetector:
       rate.sleep()
 
   def __init__(self):
+    # print('I am here in marker detector.')
+
     # Initialize the ROS node
     rospy.init_node('marker_detector', anonymous=True)
 
