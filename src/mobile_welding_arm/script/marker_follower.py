@@ -55,8 +55,8 @@ class MarkerFollower:
   def __init__(self, distance):
 
     # PID Controller for controlling the UGV
-    self.linear_pid = PID(kp=0.2, ki=0.0, kd=0.00)
-    self.angular_pid = PID(kp=0.5, ki=0.0, kd=0.00)
+    self.linear_pid = PID(kp=0.75, ki=0.0, kd=0.00)
+    self.angular_pid = PID(kp=0.75, ki=0.0, kd=0.00)
 
     # Create a Buffer and a TransformListener for tf2 lookup
     self.tf_buffer = tf2_ros.Buffer()
@@ -81,6 +81,7 @@ class MarkerFollower:
 
     # Names of the source and target frames
     self.camera_frame = 'd435_color_frame' # changed by V Wu on 19 Sep 2023.
+    self.optical_frame = 'd435_color_optical_frame'
     self.odom_frame = 'odom'
     self.ugv_frame = 'bunker_pro_base_link'
 
@@ -99,6 +100,13 @@ class MarkerFollower:
     self.done = False       # target pose reached
     self.target_angular = 0 # orientation of the target pose
     self.target_yaw = 0     # orientation to face target position
+
+    # Look up the transformation from optical frame to camera frame
+    try:
+      self.optical2camera_transform = self.tf_buffer.lookup_transform(self.optical_frame, self.camera_frame,
+                                                                      rospy.Time(0), rospy.Duration(1.0))
+    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+      rospy.logerr(e)
 
     # Look up the transformation from camera to UGV base
     try:
@@ -292,38 +300,37 @@ class MarkerFollower:
     # Project the 3D position of the marker-pose onto the X-Y plane
     camera_target_pose = PoseStamped()
     ugv_target_pose = PoseStamped()
+    # Transform the marker pose from optical frame to camera frame
+    # marker_pose = tf2_geometry_msgs.do_transform_pose(marker_pose, self.optical2camera_transform)
+    local_marker_pose = tf2_geometry_msgs.do_transform_pose(marker_pose, self.optical2camera_transform)
+    local_marker_pose.header.frame_id = self.camera_frame
+
     # Marker position
-    marker_position = [marker_pose.pose.position.x, marker_pose.pose.position.y, marker_pose.pose.position.z]
+    marker_position = [local_marker_pose.pose.position.x, local_marker_pose.pose.position.y, local_marker_pose.pose.position.z]
     # Convert marker's orientation to rotation matrix
-    marker_quaternion = (marker_pose.pose.orientation.x, marker_pose.pose.orientation.y, 
-                         marker_pose.pose.orientation.z, marker_pose.pose.orientation.w)
+    marker_quaternion = (local_marker_pose.pose.orientation.x, local_marker_pose.pose.orientation.y, 
+                         local_marker_pose.pose.orientation.z, local_marker_pose.pose.orientation.w)
     r = R.from_quat(marker_quaternion)
     marker_matrix = r.as_matrix()
-    # Rotate the marker orientation so that its Z-axis becomes the negative X-axis,
-    # and its Y-axis becomes the Z-axis, and its X-axis becomes the negative Y-axis
-    marker_matrix = np.matmul(marker_matrix, ([0, -1, 0], [0, 0, 1], [-1, 0, 0]))
-    # Convert the marker matrix back to quaternion for orientation
-    r = R.from_matrix(marker_matrix)
-    marker_quaternion = r.as_quat()
     # Subtract the Distance from its new X-axis as the new position this is where the target should be
     # where marker_matrix[:, 0] is its X-axis
-    camera_target_position = marker_position - marker_matrix[:, 0] * self.distance
+    camera_target_position = marker_position + (marker_matrix[:, 0] * self.distance)
     camera_target_pose.pose.position.x = camera_target_position[0]
     camera_target_pose.pose.position.y = camera_target_position[1]
-    camera_target_pose.pose.position.z = 0.0 # Set the Z coordinate to zero so that it is on X-Y plane
+    camera_target_pose.pose.position.z = camera_target_position[2]
     # Set the target orientation
     camera_target_pose.pose.orientation.x = marker_quaternion[0]
     camera_target_pose.pose.orientation.y = marker_quaternion[1]
     camera_target_pose.pose.orientation.z = marker_quaternion[2]
     camera_target_pose.pose.orientation.w = marker_quaternion[3]
     # Complete the PoseStamped format (header)
-    camera_target_pose.header.frame_id = self.odom_frame
+    camera_target_pose.header.frame_id = self.camera_frame
     camera_target_pose.header.stamp = rospy.Time.now()
     self.camera_target_pose = camera_target_pose
     self.camera_target_pub.publish(camera_target_pose)
 
     ugv_target_pose = tf2_geometry_msgs.do_transform_pose(camera_target_pose, self.camera2ugv_transform)
-    ugv_target_pose.header.frame_id = 'odom'
+    ugv_target_pose.header.frame_id = self.camera_frame
     self.ugv_target_pose = project2xy_plane(ugv_target_pose)
     self.ugv_target_pub.publish(ugv_target_pose)
     return

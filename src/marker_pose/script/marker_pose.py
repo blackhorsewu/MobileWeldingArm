@@ -112,7 +112,7 @@ class MarkerDetector:
       U, _, Vt = np.linalg.svd(avg_orientation)
       avg_orientation = U @ Vt
       # Rotate the pose about the X-axis to turn the pose away from the camera
-      # avg_orientation = np.matmul(avg_orientation, [[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+      avg_orientation = np.matmul(avg_orientation, [[1, 0, 0], [0, -1, 0], [0, 0, -1]])
 
       # Convert it to quaternion
       r = R.from_matrix(avg_orientation)
@@ -131,7 +131,6 @@ class MarkerDetector:
       pose_msg.orientation.z = avg_orientation[2]
       pose_msg.orientation.w = avg_orientation[3]
 
-      # print('I am Image Callback 4.')
       self.pose_pub.publish(pose_msg)
       # It has to be PoseStamped in order to publish to the RViz
       pose_stamped = PoseStamped()
@@ -139,15 +138,15 @@ class MarkerDetector:
       pose_stamped.header.frame_id = 'd435_color_optical_frame'
       pose_stamped.header.stamp = rospy.Time.now()
 
+      ''''''
+      # Keep it in the camera_optical_frame
       try:
-        self.Tc2o = self.tf_buffer.lookup_transform(self.odom_frame, self.camera_optical_frame, rospy.Time(0))
+        self.Tc2o = self.tf_buffer.lookup_transform(self.camera_frame, self.camera_optical_frame, rospy.Time(0))
       except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
         rospy.logerr("Transformation not available!")
-
-      # print('I am Image Callback 5.')
       pose_stamped = tf2_geometry_msgs.do_transform_pose(pose_stamped, self.Tc2o)
+      
       self.poseStamped_pub.publish(pose_stamped)
-      # print('I am Image Callback 6.')
 
     # else:
       # print('******************** No markers detected! ******************')
@@ -182,6 +181,7 @@ class MarkerDetector:
     # Names of the source and target frames
     self.odom_frame = 'odom'
     self.camera_optical_frame = 'd435_color_optical_frame'
+    self.camera_frame = 'd435_color_frame'
 
     # Subscribe to the camera info and image topics
     self.info_subscriber = rospy.Subscriber('/d435/color/camera_info', CameraInfo, self.camera_info_callback, queue_size=10)
