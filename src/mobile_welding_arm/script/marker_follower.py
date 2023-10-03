@@ -69,6 +69,7 @@ class MarkerFollower:
     rospy.Subscriber('/estop', Bool, self.estop_callback)
 
     # Publisher for the pose of the target and current Robot base
+    self.local_marker_pose_pub = rospy.Publisher('/local_marker_pose_stamped', PoseStamped, queue_size=1)
     self.camera_target_pub = rospy.Publisher('/camera_target_pose', PoseStamped, queue_size=1)
     self.ugv_target_pub = rospy.Publisher('/ugv_target_pose', PoseStamped, queue_size=1)
     self.current_pub = rospy.Publisher('/current_pose', PoseStamped, queue_size=1)
@@ -300,33 +301,42 @@ class MarkerFollower:
     # Project the 3D position of the marker-pose onto the X-Y plane
     camera_target_pose = PoseStamped()
     ugv_target_pose = PoseStamped()
+
+    # self.local_marker_pose_pub.publish(marker_pose)
+
     # Transform the marker pose from optical frame to camera frame
     # marker_pose = tf2_geometry_msgs.do_transform_pose(marker_pose, self.optical2camera_transform)
-    local_marker_pose = tf2_geometry_msgs.do_transform_pose(marker_pose, self.optical2camera_transform)
-    local_marker_pose.header.frame_id = self.camera_frame
+    # local_marker_pose = tf2_geometry_msgs.do_transform_pose(marker_pose, self.optical2camera_transform)
+    # print('local_marker_pose.frame_id: ', local_marker_pose.header.frame_id)
+    # local_marker_pose.header.frame_id = self.camera_frame
+    local_marker_pose = marker_pose
+
+    self.local_marker_pose_pub.publish(local_marker_pose)
 
     # Marker position
-    marker_position = [local_marker_pose.pose.position.x, local_marker_pose.pose.position.y, local_marker_pose.pose.position.z]
+    local_marker_position = [local_marker_pose.pose.position.x, local_marker_pose.pose.position.y, local_marker_pose.pose.position.z]
     # Convert marker's orientation to rotation matrix
-    marker_quaternion = (local_marker_pose.pose.orientation.x, local_marker_pose.pose.orientation.y, 
+    local_marker_quaternion = (local_marker_pose.pose.orientation.x, local_marker_pose.pose.orientation.y, 
                          local_marker_pose.pose.orientation.z, local_marker_pose.pose.orientation.w)
-    r = R.from_quat(marker_quaternion)
-    marker_matrix = r.as_matrix()
+    r = R.from_quat(local_marker_quaternion)
+    local_marker_matrix = r.as_matrix()
     # Subtract the Distance from its new X-axis as the new position this is where the target should be
     # where marker_matrix[:, 0] is its X-axis
-    camera_target_position = marker_position + (marker_matrix[:, 0] * self.distance)
+    camera_target_position = local_marker_position - (local_marker_matrix[:, 2] * self.distance)
     camera_target_pose.pose.position.x = camera_target_position[0]
     camera_target_pose.pose.position.y = camera_target_position[1]
     camera_target_pose.pose.position.z = camera_target_position[2]
     # Set the target orientation
-    camera_target_pose.pose.orientation.x = marker_quaternion[0]
-    camera_target_pose.pose.orientation.y = marker_quaternion[1]
-    camera_target_pose.pose.orientation.z = marker_quaternion[2]
-    camera_target_pose.pose.orientation.w = marker_quaternion[3]
+    camera_target_pose.pose.orientation.x = local_marker_quaternion[0]
+    camera_target_pose.pose.orientation.y = local_marker_quaternion[1]
+    camera_target_pose.pose.orientation.z = local_marker_quaternion[2]
+    camera_target_pose.pose.orientation.w = local_marker_quaternion[3]
     # Complete the PoseStamped format (header)
     camera_target_pose.header.frame_id = self.camera_frame
     camera_target_pose.header.stamp = rospy.Time.now()
     self.camera_target_pose = camera_target_pose
+    # print('marker_pose: ', marker_pose)
+    # print('camera_target_pose: ', camera_target_pose)
     self.camera_target_pub.publish(camera_target_pose)
 
     ugv_target_pose = tf2_geometry_msgs.do_transform_pose(camera_target_pose, self.camera2ugv_transform)
