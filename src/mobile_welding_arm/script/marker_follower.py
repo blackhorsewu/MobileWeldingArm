@@ -50,6 +50,11 @@ class PID:
         self.prev_error = error
         return output
 
+class State:
+  ALIGN_HEADING = "align_heading"
+  MOVE_TO_TARGET = "move_to_target"
+  ADJUST_ORIENTATION = "adjust_orientation"
+
 class MarkerFollower:
 
   def __init__(self, distance):
@@ -94,6 +99,9 @@ class MarkerFollower:
 
     # Initialize Emergency Stop status
     self.estop_triggered = False
+
+    # Initialize the Finite State Machine
+    self.state = State.ALIGN_HEADING
 
     # attributes for control_ugv
     self.target_position_reached = False
@@ -219,6 +227,36 @@ class MarkerFollower:
     dy = self.ugv_target_pose.pose.position.y - self.current_pose.pose.position.y
     return math.sqrt(dx**2 + dy**2)
 
+  def align_heading(self):
+    angular_correction = 0
+    heading_error = self.heading_error()
+    rospy.logdebug('Heading error: %f', heading_error)
+    if abs(heading_error) < ANGULAR_THRESHOLD:
+      self.state = State.MOVE_TO_TARGET
+    else:
+      angular_correction = self.angular_pid.compute(heading_error)
+    return angular_correction
+
+  def move_to_target(self):
+    linear_correction = 0
+    linear_error = self.linear_error()
+    rospy.logdebug('Linear error: %f', linear_error)
+    if abs(linear_error) < LINEAR_THRESHOLD:
+      self.state = State.ADJUST_ORIENTATION
+    else:
+      linear_correction = self.linear_pid.compute(linear_error)
+    return linear_correction
+
+  def adjust_orientation(self):
+    angular_correction = 0
+    angular_error = self.angular_error()
+    rospy.logdebug('Angular error: %f', angular_error)
+    if abs(angular_error) < ANGULAR_THRESHOLD:
+      self.done = True
+    else:
+      angular_correction = self.angular_pid.compute(angular_error)
+    return angular_correction
+
   def control_ugv(self):
 
     self.current_pose = self.get_current_pose()
@@ -232,6 +270,16 @@ class MarkerFollower:
     linear_correction = 0
     angular_correction = 0
 
+    if self.state == State.ALIGN_HEADING:
+      angular_correction = self.align_heading()
+
+    elif self.state == State.MOVE_TO_TARGET:
+      linear_correction = self.move_to_target()
+
+    elif self.state == State.ADJUST_ORIENTATION:
+      angular_correction = self.adjust_orientation()
+
+    '''
     linear_error = self.linear_error()
     heading_error = self.heading_error()
     angular_error = self.angular_error()
@@ -273,6 +321,7 @@ class MarkerFollower:
           linear_error = self.linear_error()
           rospy.logdebug('Linear error: %f', linear_error)
           linear_correction = self.linear_pid.compute(linear_error)
+    '''
     rospy.logdebug('Linear correction: %f', linear_correction)
     rospy.logdebug('Angular correction: %f', angular_correction)
     if not self.estop_triggered and not self.done:
