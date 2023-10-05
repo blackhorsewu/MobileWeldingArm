@@ -20,7 +20,6 @@
   <param name="robot_description"
          command="$(find xacro)/xacro $(find mobile_welding_arm)/urdf/mobile_welding_arm.xacro"
   />
-  
 
   <!--
     Launch the camera D435 
@@ -39,7 +38,6 @@
   <node name="ur_connection_manager" 
         pkg="ur_connection_manager" 
         type="ur_connection_manager_node.py" /> 
-  
 
   <!--
     Launch the Robot State Publisher
@@ -47,7 +45,6 @@
   <node name="robot_state_publisher" 
         pkg="robot_state_publisher" 
         type="robot_state_publisher" />
-  
 
   <!-- 
     Setup the arguments before launching the UGV 
@@ -57,7 +54,6 @@
   <arg name="simulated_robot" default="false" />
   <arg name="odom_topic_name" default="odom" />
   <arg name="pub_tf" default="true" />
-  
   
   <!-- 
     Launch the UGV 
@@ -72,11 +68,11 @@
       <param name="pub_tf" type="bool" value="$(arg pub_tf)" />
   </node>
   
-  
   <!--
     Launch the Welding System
     distance is the distance from marker to camera optical frame
     that should be 28cm or 0.28m
+  -->
   
   <node pkg="mobile_welding_arm"
         type="mobile_welding_arm.py"
@@ -89,7 +85,6 @@
     <param name="view_joints" value="[-0.0524, -1.1756, -2.6466, 0.8147, 1.5948, 0.0049]" />
     <param name="distance" value="0.28" /> 
   </node>
-  -->
 
   <!-- launch the marker_pose node -->
   <node pkg="marker_pose"
@@ -103,7 +98,7 @@
   <node name="rviz" pkg="rviz" type="rviz" />
   -->
   <node name="rviz" pkg="rviz" type="rviz"
-    args="-d $(find mobile_welding_arm)/rviz/mobile_welding_arm.rviz" />
+    args="-d $(find mobile_welding_arm)/launch/mobile_welding_arm.rviz" />
   
 
 </launch>

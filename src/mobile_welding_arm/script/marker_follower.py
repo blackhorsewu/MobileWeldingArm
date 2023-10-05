@@ -283,49 +283,53 @@ class MarkerFollower:
     return
 
   def calculate_ugv_target_pose(self, marker_pose):
+    # marker_pose is in camera frame already
 
+    # Project the 3D position of the marker-pose onto the X-Y plane
     def project2xy_plane(pose_3d):
       # Set z-coordinate to zero for position
       pose_3d.pose.position.z = 0
+
+      
       # Get the yaw from the orientation of the pose
       _, _, yaw = tf.transformations.euler_from_quaternion([pose_3d.pose.orientation.x, pose_3d.pose.orientation.y,
                                                             pose_3d.pose.orientation.z, pose_3d.pose.orientation.w])
-      # Convert yaw to a quaternion (ignoring roll and pitch)
-      q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+      # Convert yaw to a quaternion (ignoring roll and pitch); Don't know why but needs to rotate by half pi.
+      q = tf.transformations.quaternion_from_euler(0, 0, (yaw + math.pi/2))
+
+      # Update the pose's orientation
       pose_3d.pose.orientation.x = q[0]
       pose_3d.pose.orientation.y = q[1]
       pose_3d.pose.orientation.z = q[2]
       pose_3d.pose.orientation.w = q[3]
       return pose_3d
 
-    # Project the 3D position of the marker-pose onto the X-Y plane
     camera_target_pose = PoseStamped()
     ugv_target_pose = PoseStamped()
 
-    # self.local_marker_pose_pub.publish(marker_pose)
-
-    # Transform the marker pose from optical frame to camera frame
-    # marker_pose = tf2_geometry_msgs.do_transform_pose(marker_pose, self.optical2camera_transform)
-    # local_marker_pose = tf2_geometry_msgs.do_transform_pose(marker_pose, self.optical2camera_transform)
-    # print('local_marker_pose.frame_id: ', local_marker_pose.header.frame_id)
-    # local_marker_pose.header.frame_id = self.camera_frame
-    local_marker_pose = marker_pose
-
-    self.local_marker_pose_pub.publish(local_marker_pose)
-
     # Marker position
-    local_marker_position = [local_marker_pose.pose.position.x, local_marker_pose.pose.position.y, local_marker_pose.pose.position.z]
+    # local_marker_position = [marker_pose.pose.position.x, marker_pose.pose.position.y, marker_pose.pose.position.z]
+    local_marker_position = [marker_pose.pose.position.x, marker_pose.pose.position.y, marker_pose.pose.position.z]
     # Convert marker's orientation to rotation matrix
-    local_marker_quaternion = (local_marker_pose.pose.orientation.x, local_marker_pose.pose.orientation.y, 
-                         local_marker_pose.pose.orientation.z, local_marker_pose.pose.orientation.w)
+    local_marker_quaternion = (marker_pose.pose.orientation.x, marker_pose.pose.orientation.y, 
+                               marker_pose.pose.orientation.z, marker_pose.pose.orientation.w)
     r = R.from_quat(local_marker_quaternion)
     local_marker_matrix = r.as_matrix()
+
+    '''
+    yaw, pitch, roll = r.as_euler('zyx')
+    # Set roll to zero
+    roll = 0
+    r = R.from_euler('zyx', [yaw, pitch, roll])
+    local_marker_quaternion = r.as_quat()
+    '''
+
     # Subtract the Distance from its new X-axis as the new position this is where the target should be
     # where marker_matrix[:, 0] is its X-axis
     camera_target_position = local_marker_position - (local_marker_matrix[:, 2] * self.distance)
     camera_target_pose.pose.position.x = camera_target_position[0]
     camera_target_pose.pose.position.y = camera_target_position[1]
-    camera_target_pose.pose.position.z = camera_target_position[2]
+    camera_target_pose.pose.position.z = marker_pose.pose.position.z - camera_target_position[2]
     # Set the target orientation
     camera_target_pose.pose.orientation.x = local_marker_quaternion[0]
     camera_target_pose.pose.orientation.y = local_marker_quaternion[1]
@@ -342,7 +346,7 @@ class MarkerFollower:
     ugv_target_pose = tf2_geometry_msgs.do_transform_pose(camera_target_pose, self.camera2ugv_transform)
     ugv_target_pose.header.frame_id = self.camera_frame
     self.ugv_target_pose = project2xy_plane(ugv_target_pose)
-    self.ugv_target_pub.publish(ugv_target_pose)
+    self.ugv_target_pub.publish(self.ugv_target_pose)
     return
 
   def marker_callback(self, marker_pose):

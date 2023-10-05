@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Camera1
         - /Camera1/Visibility1
       Splitter Ratio: 0.5
     Tree Height: 739
@@ -324,7 +325,7 @@ Visualization Manager:
       Unreliable: false
       Value: true
       Visibility:
-        Camera Target Pose: true
+        Camera Target Pose: false
         Current Pose: true
         Grid: true
         Marker Pose: true
@@ -418,17 +419,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 1.6703256368637085
-        Y: 0.2648410201072693
-        Z: 0.5919761061668396
+        X: 2.229423999786377
+        Y: 0.7402564883232117
+        Z: 0.8361241221427917
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7597964406013489
+      Pitch: -0.02020350471138954
       Target Frame: <Fixed Frame>
-      Yaw: 2.140397310256958
+      Yaw: 2.2953968048095703
     Saved: ~
 Window Geometry:
   Camera:
