@@ -36,6 +36,7 @@ import numpy as np
 from sensor_msgs.msg import CameraInfo, Image
 from scipy.spatial.transform import Rotation as R
 from collections import deque
+import math
 
 # from chsweld_core.msg import URPose
 from geometry_msgs.msg import Pose, PoseStamped, TransformStamped
@@ -121,7 +122,7 @@ class MarkerDetector:
       yaw, pitch, roll = r.as_euler('zyx')
       # Set roll to zero
       roll = 0
-      pitch = 0
+      yaw = 0
       r = R.from_euler('zyx', [yaw, pitch, roll])
       avg_orientation = r.as_quat()
 
@@ -175,7 +176,7 @@ class MarkerDetector:
         world_pose_r = R.from_quat((world_pose.pose.orientation.x, world_pose.pose.orientation.y,
                                     world_pose.pose.orientation.z, world_pose.pose.orientation.w))
         _, _, yaw = world_pose_r.as_euler('xyz')
-        world_pose_r = R.from_euler('xyz', [0, 0, yaw])
+        world_pose_r = R.from_euler('xyz', [0, 0, (yaw + math.pi/2)])
         world_pose_q = world_pose_r.as_quat()
         world_pose.pose.orientation.x = world_pose_q[0]
         world_pose.pose.orientation.y = world_pose_q[1]

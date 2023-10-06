@@ -336,26 +336,40 @@ class MarkerFollower:
 
     # Project the 3D position of the marker-pose onto the X-Y plane
     def project2xy_plane(pose_3d):
+      
+      '''
       # Set z-coordinate to zero for position
       pose_3d.pose.position.z = 0
 
       
       # Get the yaw from the orientation of the pose
-      _, _, yaw = tf.transformations.euler_from_quaternion([pose_3d.pose.orientation.x, pose_3d.pose.orientation.y,
+      roll, pitch, yaw = tf.transformations.euler_from_quaternion([pose_3d.pose.orientation.x, pose_3d.pose.orientation.y,
                                                             pose_3d.pose.orientation.z, pose_3d.pose.orientation.w])
       # Convert yaw to a quaternion (ignoring roll and pitch); Don't know why but needs to rotate by half pi.
-      q = tf.transformations.quaternion_from_euler(0, 0, (yaw + math.pi/2))
+      q = tf.transformations.quaternion_from_euler(0, pitch, 0)
 
       # Update the pose's orientation
       pose_3d.pose.orientation.x = q[0]
       pose_3d.pose.orientation.y = q[1]
       pose_3d.pose.orientation.z = q[2]
       pose_3d.pose.orientation.w = q[3]
+      '''
+
+      try:
+        transform = self.tf_buffer.lookup_transform('world', self.camera_frame, rospy.Time(0))
+      except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+        rospy.logerror("Failed to get current camera pose from tf")
+
+      pose_3d = tf2_geometry_msgs.do_transform_pose(pose_3d, transform)
+
       return pose_3d
 
     camera_target_pose = PoseStamped()
     ugv_target_pose = PoseStamped()
 
+    # Project the Marker pose onto the X-Y plane
+    marker_on_ground = project2xy_plane(marker_pose)
+    '''
     # Marker position
     # local_marker_position = [marker_pose.pose.position.x, marker_pose.pose.position.y, marker_pose.pose.position.z]
     local_marker_position = [marker_pose.pose.position.x, marker_pose.pose.position.y, marker_pose.pose.position.z]
@@ -365,13 +379,13 @@ class MarkerFollower:
     r = R.from_quat(local_marker_quaternion)
     local_marker_matrix = r.as_matrix()
 
-    '''
+    
     yaw, pitch, roll = r.as_euler('zyx')
     # Set roll to zero
     roll = 0
     r = R.from_euler('zyx', [yaw, pitch, roll])
     local_marker_quaternion = r.as_quat()
-    '''
+    
 
     # Subtract the Distance from its new X-axis as the new position this is where the target should be
     # where marker_matrix[:, 0] is its X-axis
@@ -384,13 +398,15 @@ class MarkerFollower:
     camera_target_pose.pose.orientation.y = local_marker_quaternion[1]
     camera_target_pose.pose.orientation.z = local_marker_quaternion[2]
     camera_target_pose.pose.orientation.w = local_marker_quaternion[3]
+    '''
     # Complete the PoseStamped format (header)
     camera_target_pose.header.frame_id = self.camera_frame
     camera_target_pose.header.stamp = rospy.Time.now()
     self.camera_target_pose = camera_target_pose
     # print('marker_pose: ', marker_pose)
     # print('camera_target_pose: ', camera_target_pose)
-    self.camera_target_pub.publish(camera_target_pose)
+    print('marker_on_ground: ', marker_on_ground)
+    self.camera_target_pub.publish(marker_on_ground)
 
     ugv_target_pose = tf2_geometry_msgs.do_transform_pose(camera_target_pose, self.camera2ugv_transform)
     ugv_target_pose.header.frame_id = self.camera_frame
