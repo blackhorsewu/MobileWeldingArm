@@ -146,7 +146,7 @@ class MarkerDetector:
       pose_stamped.header.frame_id = 'd435_color_optical_frame'
       pose_stamped.header.stamp = rospy.Time.now()
 
-      # self.poseStamped_pub.publish(pose_stamped)
+      self.poseStamped_pub.publish(pose_stamped)
 
       # Create the TransformStamped message
       transform_stamped = TransformStamped()
@@ -187,7 +187,7 @@ class MarkerDetector:
     
         self.Tu2m = self.tf_buffer.lookup_transform('marker', 'bunker_pro_base_link', rospy.Time(0))
         self.world_pose = tf2_geometry_msgs.do_transform_pose(world_pose, self.Tu2m)
-        self.poseStamped_pub.publish(self.world_pose)
+        self.world_pose_Stamped_pub.publish(self.world_pose)
         # Transform from UGV to marker
 
         # Create the TransformStamped message for my 'world' transform
@@ -255,6 +255,7 @@ class MarkerDetector:
     # Publisher for the marker pose message
     self.pose_pub = rospy.Publisher('/marker_pose', Pose, queue_size=10)
     self.poseStamped_pub = rospy.Publisher('/marker_pose_stamped', PoseStamped, queue_size=10)
+    self.world_pose_Stamped_pub = rospy.Publisher('/world_pose_stamped', PoseStamped, queue_size=10)
 
 if __name__ == '__main__':
   marker_detector = MarkerDetector()

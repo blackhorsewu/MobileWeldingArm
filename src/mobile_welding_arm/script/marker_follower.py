@@ -337,38 +337,40 @@ class MarkerFollower:
     # Project the 3D position of the marker-pose onto the X-Y plane
     def project2xy_plane(pose_3d):
       
-      '''
+      ''''''
       # Set z-coordinate to zero for position
       pose_3d.pose.position.z = 0
 
       
-      # Get the yaw from the orientation of the pose
+      # Get the pitch of the optical frame from the orientation of the pose
       roll, pitch, yaw = tf.transformations.euler_from_quaternion([pose_3d.pose.orientation.x, pose_3d.pose.orientation.y,
                                                             pose_3d.pose.orientation.z, pose_3d.pose.orientation.w])
       # Convert yaw to a quaternion (ignoring roll and pitch); Don't know why but needs to rotate by half pi.
-      q = tf.transformations.quaternion_from_euler(0, pitch, 0)
+      q = tf.transformations.quaternion_from_euler(0, 0, (yaw + math.pi/2))
 
       # Update the pose's orientation
       pose_3d.pose.orientation.x = q[0]
       pose_3d.pose.orientation.y = q[1]
       pose_3d.pose.orientation.z = q[2]
       pose_3d.pose.orientation.w = q[3]
-      '''
-
-      try:
-        transform = self.tf_buffer.lookup_transform('world', self.camera_frame, rospy.Time(0))
-      except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-        rospy.logerror("Failed to get current camera pose from tf")
-
-      pose_3d = tf2_geometry_msgs.do_transform_pose(pose_3d, transform)
+      
 
       return pose_3d
 
     camera_target_pose = PoseStamped()
     ugv_target_pose = PoseStamped()
 
-    # Project the Marker pose onto the X-Y plane
-    marker_on_ground = project2xy_plane(marker_pose)
+    # Transform the marker_pose, originally in the optical_frame to the ugv frame first
+    try:
+      transform = self.tf_buffer.lookup_transform(self.ugv_frame, self.optical_frame, rospy.Time(0))
+    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+      rospy.logerror("Failed to get current camera pose from tf")
+
+    pose_3d = tf2_geometry_msgs.do_transform_pose(marker_pose, transform)
+
+    # then, project the Marker pose (in the fixed frame, that is the ugv frame) onto the X-Y plane
+    # marker_on_ground = project2xy_plane(marker_pose)
+    marker_on_ground = project2xy_plane(pose_3d)
     '''
     # Marker position
     # local_marker_position = [marker_pose.pose.position.x, marker_pose.pose.position.y, marker_pose.pose.position.z]
@@ -400,12 +402,16 @@ class MarkerFollower:
     camera_target_pose.pose.orientation.w = local_marker_quaternion[3]
     '''
     # Complete the PoseStamped format (header)
-    camera_target_pose.header.frame_id = self.camera_frame
+    '''
+    camera_target_pose.header.frame_id = self.ugv_frame
     camera_target_pose.header.stamp = rospy.Time.now()
     self.camera_target_pose = camera_target_pose
+    '''
     # print('marker_pose: ', marker_pose)
     # print('camera_target_pose: ', camera_target_pose)
-    print('marker_on_ground: ', marker_on_ground)
+    # print('marker_on_ground: ', marker_on_ground)
+    marker_on_ground.header.frame_id = self.ugv_frame
+    marker_on_ground.header.stamp = rospy.Time.now()
     self.camera_target_pub.publish(marker_on_ground)
 
     ugv_target_pose = tf2_geometry_msgs.do_transform_pose(camera_target_pose, self.camera2ugv_transform)
