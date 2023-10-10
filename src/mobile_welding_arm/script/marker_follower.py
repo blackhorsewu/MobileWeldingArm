@@ -25,9 +25,9 @@ import rospy
 import tf2_ros
 import tf2_geometry_msgs
 import math
-import tf.transformations
+from tf.transformations import quaternion_matrix, quaternion_from_matrix, inverse_matrix
 from std_msgs.msg import Bool
-from geometry_msgs.msg import Twist, PoseStamped
+from geometry_msgs.msg import Twist, PoseStamped, TransformStamped
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import welding_msgs.srv 
@@ -90,6 +90,7 @@ class MarkerFollower:
     self.optical_frame = 'd435_color_optical_frame'
     self.odom_frame = 'odom'
     self.ugv_frame = 'bunker_pro_base_link'
+    self.marker_frame = 'marker'
 
     # Setup an empty poses in 'odom' frame
     self.marker_pose = None
@@ -359,65 +360,105 @@ class MarkerFollower:
 
     camera_target_pose = PoseStamped()
     ugv_target_pose = PoseStamped()
+    optical_pose = PoseStamped()
 
-    # Transform the marker_pose, originally in the optical_frame to the ugv frame first
-    try:
-      transform = self.tf_buffer.lookup_transform(self.ugv_frame, self.optical_frame, rospy.Time(0))
+    # The Optical pose in the optical frame is just all zero's
+    # Position at (0, 0, 0)
+    optical_pose.pose.position.x = 0
+    optical_pose.pose.position.y = 0
+    optical_pose.pose.position.z = 0
+    # Orientation - no rotation (0, 0, 0, 1)
+    optical_pose.pose.orientation.x = 0
+    optical_pose.pose.orientation.y = 0
+    optical_pose.pose.orientation.z = 0
+    optical_pose.pose.orientation.w = 1
+    # Header
+    optical_pose.header.frame_id = self.optical_frame
+    optical_pose.header.stamp = rospy.Time.now()
+
+    # Transform the Optical pose (in the optical_frame) to the marker frame
+    try:                                          #  Target frame      Source frame
+      transform = self.tf_buffer.lookup_transform(self.marker_frame, self.optical_frame, rospy.Time(0))
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
       rospy.logerror("Failed to get current camera pose from tf")
 
-    pose_3d = tf2_geometry_msgs.do_transform_pose(marker_pose, transform)
+    # The camera target pose in the marker's frame is transformed from the optical pose
+    camera_target_pose = tf2_geometry_msgs.do_transform_pose(optical_pose, transform)
+    # The position of the camera target pose should be -ve self.distance of the Z-axis of the marker frame
+    camera_target_pose.pose.position.z = -self.distance
+    # The orientation of the camera target pose should be the same as the marker frame, no rotation
+    camera_target_pose.pose.orientation.x = 0
+    camera_target_pose.pose.orientation.y = 0
+    camera_target_pose.pose.orientation.z = 0
+    camera_target_pose.pose.orientation.w = 1
 
-    # then, project the Marker pose (in the fixed frame, that is the ugv frame) onto the X-Y plane
-    # marker_on_ground = project2xy_plane(marker_pose)
-    marker_on_ground = project2xy_plane(pose_3d)
-    '''
-    # Marker position
-    # local_marker_position = [marker_pose.pose.position.x, marker_pose.pose.position.y, marker_pose.pose.position.z]
-    local_marker_position = [marker_pose.pose.position.x, marker_pose.pose.position.y, marker_pose.pose.position.z]
-    # Convert marker's orientation to rotation matrix
-    local_marker_quaternion = (marker_pose.pose.orientation.x, marker_pose.pose.orientation.y, 
-                               marker_pose.pose.orientation.z, marker_pose.pose.orientation.w)
-    r = R.from_quat(local_marker_quaternion)
-    local_marker_matrix = r.as_matrix()
+    # Transform this camera_target_pose from marker frame to ugv frame
+    try:
+      transform = self.tf_buffer.lookup_transform(self.ugv_frame, self.marker_frame, rospy.Time(0))
+    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+      rospy.logerror("Failed to get current camera pose from tf")
+    camera_target_pose = tf2_geometry_msgs.do_transform_pose(camera_target_pose, transform)
+    self.camera_target_pub.publish(camera_target_pose)
 
-    
-    yaw, pitch, roll = r.as_euler('zyx')
-    # Set roll to zero
-    roll = 0
-    r = R.from_euler('zyx', [yaw, pitch, roll])
-    local_marker_quaternion = r.as_quat()
-    
+    # 1. Retrieve Current Optical Pose
+    trans_current = self.tf_buffer.lookup_transform(self.ugv_frame, self.optical_frame, rospy.Time(0))
 
-    # Subtract the Distance from its new X-axis as the new position this is where the target should be
-    # where marker_matrix[:, 0] is its X-axis
-    camera_target_position = local_marker_position - (local_marker_matrix[:, 2] * self.distance)
-    camera_target_pose.pose.position.x = camera_target_position[0]
-    camera_target_pose.pose.position.y = camera_target_position[1]
-    camera_target_pose.pose.position.z = marker_pose.pose.position.z - camera_target_position[2]
-    # Set the target orientation
-    camera_target_pose.pose.orientation.x = local_marker_quaternion[0]
-    camera_target_pose.pose.orientation.y = local_marker_quaternion[1]
-    camera_target_pose.pose.orientation.z = local_marker_quaternion[2]
-    camera_target_pose.pose.orientation.w = local_marker_quaternion[3]
-    '''
+    # 2. Define Camera Target Pose 
+    trans_desired = TransformStamped()
+    trans_desired.transform.translation.x = camera_target_pose.pose.position.x
+    trans_desired.transform.translation.y = camera_target_pose.pose.position.y
+    trans_desired.transform.translation.z = camera_target_pose.pose.position.z
+    trans_desired.transform.rotation.x = camera_target_pose.pose.orientation.x
+    trans_desired.transform.rotation.y = camera_target_pose.pose.orientation.y
+    trans_desired.transform.rotation.z = camera_target_pose.pose.orientation.z
+    trans_desired.transform.rotation.w = camera_target_pose.pose.orientation.w
+
+    # 3. Compute the Transformation Difference
+    # First, get the inverse of the current transformation in matrix form
+    T_current_matrix = quaternion_matrix([
+      trans_current.transform.rotation.x,
+      trans_current.transform.rotation.y,
+      trans_current.transform.rotation.z,
+      trans_current.transform.rotation.w
+    ])
+    T_current_matrix[0:3, 3] = [
+      trans_current.transform.translation.x,
+      trans_current.transform.translation.y,
+      trans_current.transform.translation.z
+    ]
+    # Convert the desired transformation to matrix form
+    T_desired_matrix = quaternion_matrix([
+      trans_desired.transform.rotation.x,
+      trans_desired.transform.rotation.y,
+      trans_desired.transform.rotation.z,
+      trans_desired.transform.rotation.w
+    ])
+    T_desired_matrix[0:3, 3] = [
+      trans_desired.transform.translation.x,
+      trans_desired.transform.translation.y,
+      trans_desired.transform.translation.z
+    ]
+    # Invert the matrix
+    T_current_inv_matrix = inverse_matrix(T_current_matrix)
+    # Multiply the matrices
+    T_diff_matrix = T_desired_matrix.dot(T_current_inv_matrix)
+
+    # 4. Extract Pose Information
+    ugv_target_pose.pose.position.x = T_diff_matrix[0, 3]
+    ugv_target_pose.pose.position.y = T_diff_matrix[1, 3]
+    # ugv_target_pose.pose.position.z = T_diff_matrix[2, 3]
+    ugv_target_pose.pose.position.z = 0
+    ugv_target_pose.pose.orientation.x = quaternion_from_matrix(T_diff_matrix)[0]
+    ugv_target_pose.pose.orientation.y = quaternion_from_matrix(T_diff_matrix)[1]
+    ugv_target_pose.pose.orientation.z = quaternion_from_matrix(T_diff_matrix)[2]
+    ugv_target_pose.pose.orientation.w = quaternion_from_matrix(T_diff_matrix)[3]
+
     # Complete the PoseStamped format (header)
-    '''
-    camera_target_pose.header.frame_id = self.ugv_frame
-    camera_target_pose.header.stamp = rospy.Time.now()
-    self.camera_target_pose = camera_target_pose
-    '''
-    # print('marker_pose: ', marker_pose)
-    # print('camera_target_pose: ', camera_target_pose)
-    # print('marker_on_ground: ', marker_on_ground)
-    marker_on_ground.header.frame_id = self.ugv_frame
-    marker_on_ground.header.stamp = rospy.Time.now()
-    self.camera_target_pub.publish(marker_on_ground)
-
-    ugv_target_pose = tf2_geometry_msgs.do_transform_pose(camera_target_pose, self.camera2ugv_transform)
-    ugv_target_pose.header.frame_id = self.camera_frame
-    self.ugv_target_pose = project2xy_plane(ugv_target_pose)
+    ugv_target_pose.header.frame_id = self.ugv_frame
+    ugv_target_pose.header.stamp = rospy.Time.now()
+    self.ugv_target_pose = ugv_target_pose
     self.ugv_target_pub.publish(self.ugv_target_pose)
+
     return
 
   def marker_callback(self, marker_pose):
@@ -431,7 +472,7 @@ class MarkerFollower:
     # Calculate the UGV target pose
     self.calculate_ugv_target_pose(marker_pose)
     # Publish the Target Pose in RViz
-    self.ugv_target_pub.publish(self.ugv_target_pose)
+    # self.ugv_target_pub.publish(self.ugv_target_pose)
     self.current_pose = self.get_current_pose()
     # Unregister the marker_pose subscriber
     # self.marker_sub.unregister()

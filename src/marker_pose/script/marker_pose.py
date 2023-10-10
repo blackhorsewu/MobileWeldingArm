@@ -119,11 +119,9 @@ class MarkerDetector:
 
       # Convert it to quaternion
       r = R.from_matrix(avg_orientation)
-      yaw, pitch, roll = r.as_euler('zyx')
-      # Set roll to zero
-      roll = 0
-      yaw = 0
-      r = R.from_euler('zyx', [yaw, pitch, roll])
+      _, pitch, _ = r.as_euler('zyx')
+      # Set roll, and yaw to zero
+      r = R.from_euler('zyx', [0, pitch, 0])
       avg_orientation = r.as_quat()
 
       avg_position = avg_position.reshape((3,))
@@ -160,52 +158,6 @@ class MarkerDetector:
 
       # Broadcast the transformation of the marker from optical frame
       self.tf_broadcaster.sendTransform(transform_stamped)
-
-      try: 
-        self.Tc2u = self.tf_buffer.lookup_transform('bunker_pro_base_link', 'd435_color_optical_frame', rospy.Time(0))
-        # Transform from camera to UGV
-
-        # Construct my own 'World'
-        # The 'pose_stamped' is the marker itself
-        world_pose = tf2_geometry_msgs.do_transform_pose(pose_stamped, self.Tc2u)
-        # It should has the same orientation as the 'Marker' except that its 'roll' and 'pitch' 
-        # should be zero, with reference to the 'bunker_pro_base_link', that is horizontal.
-        # same X and Y coordinates, but the Z will be different (should be 0)
-        # This is in the 'bunker_pro_base_frame'.
-        # Then transform it again back to the 'marker' frame
-        world_pose_r = R.from_quat((world_pose.pose.orientation.x, world_pose.pose.orientation.y,
-                                    world_pose.pose.orientation.z, world_pose.pose.orientation.w))
-        _, _, yaw = world_pose_r.as_euler('xyz')
-        world_pose_r = R.from_euler('xyz', [0, 0, (yaw + math.pi/2)])
-        world_pose_q = world_pose_r.as_quat()
-        world_pose.pose.orientation.x = world_pose_q[0]
-        world_pose.pose.orientation.y = world_pose_q[1]
-        world_pose.pose.orientation.z = world_pose_q[2]
-        world_pose.pose.orientation.w = world_pose_q[3]
-        world_pose.pose.position.z = 0
-        # self.poseStamped_pub.publish(world_pose)
-    
-        self.Tu2m = self.tf_buffer.lookup_transform('marker', 'bunker_pro_base_link', rospy.Time(0))
-        self.world_pose = tf2_geometry_msgs.do_transform_pose(world_pose, self.Tu2m)
-        self.world_pose_Stamped_pub.publish(self.world_pose)
-        # Transform from UGV to marker
-
-        # Create the TransformStamped message for my 'world' transform
-        world_transform_stamped = TransformStamped()
-        world_transform_stamped.header.stamp = rospy.Time.now()
-        world_transform_stamped.header.frame_id = 'marker'
-        world_transform_stamped.child_frame_id = 'world'
-        world_transform_stamped.transform.translation.x = self.world_pose.pose.position.x
-        world_transform_stamped.transform.translation.y = self.world_pose.pose.position.y
-        world_transform_stamped.transform.translation.z = self.world_pose.pose.position.z
-        world_transform_stamped.transform.rotation = self.world_pose.pose.orientation
-
-        # Broadcast the transformation of the marker from optical frame
-        self.tf_broadcaster.sendTransform(world_transform_stamped)
-
-      except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-        rospy.logerr("Transformation not available!")
-
 
   def run(self):
     rate = rospy.Rate(10) # 10 Hz

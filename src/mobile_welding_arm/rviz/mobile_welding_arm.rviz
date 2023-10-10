@@ -7,8 +7,7 @@ Panels:
         - /Global Options1
         - /Status1
         - /Camera1/Visibility1
-        - /Target Pose1
-        - /Camera Target Pose1
+        - /TF1/Frames1
       Splitter Ratio: 0.5122615694999695
     Tree Height: 739
   - Class: rviz/Selection
@@ -59,7 +58,7 @@ Visualization Manager:
       Reference Frame: <Fixed Frame>
       Value: true
     - Alpha: 1
-      Axes Length: 0.20000000298023224
+      Axes Length: 0.5
       Axes Radius: 0.004999999888241291
       Class: rviz/Pose
       Color: 255; 25; 0
@@ -115,7 +114,7 @@ Visualization Manager:
         d435_color_frame:
           Value: false
         d435_color_optical_frame:
-          Value: false
+          Value: true
         d435_depth_frame:
           Value: false
         d435_depth_optical_frame:
@@ -146,8 +145,6 @@ Visualization Manager:
           Value: false
         upper_arm_link:
           Value: false
-        world:
-          Value: true
         wrist_1_link:
           Value: false
         wrist_2_link:
@@ -157,7 +154,7 @@ Visualization Manager:
       Marker Alpha: 1
       Marker Scale: 0.5
       Name: TF
-      Show Arrows: true
+      Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
@@ -178,8 +175,7 @@ Visualization Manager:
                                 d435_color_frame:
                                   d435_color_optical_frame:
                                     marker:
-                                      world:
-                                        {}
+                                      {}
                                 d435_depth_frame:
                                   d435_depth_optical_frame:
                                     {}
@@ -375,7 +371,7 @@ Visualization Manager:
       Unreliable: false
       Value: true
     - Alpha: 1
-      Axes Length: 1
+      Axes Length: 0.2800000011920929
       Axes Radius: 0.009999999776482582
       Class: rviz/Pose
       Color: 255; 25; 0
@@ -426,17 +422,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 1.145246982574463
-        Y: -0.2854918837547302
-        Z: 0.3605479896068573
+        X: 1.998436450958252
+        Y: 0.1589352935552597
+        Z: 0.32414743304252625
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.2897966504096985
+      Pitch: 0.5547970533370972
       Target Frame: <Fixed Frame>
-      Yaw: 2.031750202178955
+      Yaw: 2.346750259399414
     Saved: ~
 Window Geometry:
   Camera:
