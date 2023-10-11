@@ -19,6 +19,12 @@
     This python script subscribes to the RGB camera and publish the pose of the
     Charuco board centre.
 
+    Updated on 11 October 2023.
+    1. Lookup the transformation from the UR10 flange to the camera optical frame.
+       Use this to set the TCP in URx then can move the camera optical frame directly
+       with its pose.
+    2. 
+
   It requires:
   1. OpenCV
   2. cv_bridge in ROS
@@ -128,33 +134,49 @@ class MarkerDetector:
       avg_orientation = avg_orientation.reshape((4,))
 
       # establish the pose in ROS format
-      pose_msg = Pose()
-      pose_msg.position.x = avg_position[0]
-      pose_msg.position.y = avg_position[1]
-      pose_msg.position.z = avg_position[2]
-      pose_msg.orientation.x = avg_orientation[0]
-      pose_msg.orientation.y = avg_orientation[1]
-      pose_msg.orientation.z = avg_orientation[2]
-      pose_msg.orientation.w = avg_orientation[3]
+      pose_msg = PoseStamped()
+      pose_msg.pose.position.x = avg_position[0]
+      pose_msg.pose.position.y = avg_position[1]
+      pose_msg.pose.position.z = avg_position[2]
+      pose_msg.pose.orientation.x = avg_orientation[0]
+      pose_msg.pose.orientation.y = avg_orientation[1]
+      pose_msg.pose.orientation.z = avg_orientation[2]
+      pose_msg.pose.orientation.w = avg_orientation[3]
+      pose_msg.header.frame_id = 'd435_color_optical_frame'
+      pose_msg.header.stamp = rospy.Time.now()
 
-      self.pose_pub.publish(pose_msg)
-      # It has to be PoseStamped in order to publish to the RViz
-      pose_stamped = PoseStamped()
-      pose_stamped.pose = pose_msg
-      pose_stamped.header.frame_id = 'd435_color_optical_frame'
-      pose_stamped.header.stamp = rospy.Time.now()
+      # It is not necessary to time stamp the pose before aligning it to the camera centre
+      # First, transform this pose from 'optical_frame' to robot base frame
 
-      self.poseStamped_pub.publish(pose_stamped)
+      # Lookup the Transformation from the 'optical_frame' to the robot base frame.
+      try:
+        pose_transform = self.tf_buffer.lookup_transform(self.robot_base_frame, self.camera_optical_frame, rospy.Time(0))
+      except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+        rospy.logerr("Failed to get current camera pose from tf")
+      # Perform the transform
+      pose_transformed = tf2_geometry_msgs.do_transform_pose(pose_msg, pose_transform)
+
+      # Convert the quaternion to rotvec
+      r = R.from_quat([pose_transformed.pose.orientation.x, pose_transformed.pose.orientation.y,
+                       pose_transformed.pose.orientation.z, pose_transformed.pose.orientation.w])
+      rotvec = r.as_rotvec()
+
+      optical_pose = [pose_transformed.pose.position.x, pose_transformed.pose.position.y, 
+                      pose_transformed.pose.position.z, rotvec[0], rotvec[1], rotvec[2]]
+      # print(optical_pose)
+      # input('Hit enter to continue.')
+
+      self.poseStamped_pub.publish(pose_msg)
 
       # Create the TransformStamped message
       transform_stamped = TransformStamped()
       transform_stamped.header.stamp = rospy.Time.now()
       transform_stamped.header.frame_id = 'd435_color_optical_frame'
       transform_stamped.child_frame_id = 'marker'
-      transform_stamped.transform.translation.x = pose_stamped.pose.position.x
-      transform_stamped.transform.translation.y = pose_stamped.pose.position.y
-      transform_stamped.transform.translation.z = pose_stamped.pose.position.z
-      transform_stamped.transform.rotation = pose_stamped.pose.orientation
+      transform_stamped.transform.translation.x = pose_msg.pose.position.x
+      transform_stamped.transform.translation.y = pose_msg.pose.position.y
+      transform_stamped.transform.translation.z = pose_msg.pose.position.z
+      transform_stamped.transform.rotation = pose_msg.pose.orientation
 
       # Broadcast the transformation of the marker from optical frame
       self.tf_broadcaster.sendTransform(transform_stamped)
@@ -187,9 +209,9 @@ class MarkerDetector:
     self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
     
     # Names of the source and target frames
-    self.world_frame = 'world'
     self.camera_optical_frame = 'd435_color_optical_frame'
-    self.camera_frame = 'd435_color_frame'
+    self.robot_base_frame = 'base'
+    self.flange_frame = 'flange'
 
     # Subscribe to the camera info and image topics
     self.info_subscriber = rospy.Subscriber('/d435/color/camera_info', CameraInfo, self.camera_info_callback, queue_size=10)
@@ -202,12 +224,15 @@ class MarkerDetector:
     self.tf_broadcaster = tf2_ros.TransformBroadcaster()
     self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
 
-    self.world_transform = None
+    # Lookup the Transformation from the "flange" to the camera optical frame.
+    # This is used to set the TCP for moving the UR10.
+    try:
+      self.tcp_transform = self.tf_buffer.lookup_transform(self.camera_optical_frame, self.flange_frame, rospy.Time(0))
+    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+      rospy.logerr("Failed to get current camera pose from tf")
 
     # Publisher for the marker pose message
-    self.pose_pub = rospy.Publisher('/marker_pose', Pose, queue_size=10)
     self.poseStamped_pub = rospy.Publisher('/marker_pose_stamped', PoseStamped, queue_size=10)
-    self.world_pose_Stamped_pub = rospy.Publisher('/world_pose_stamped', PoseStamped, queue_size=10)
 
 if __name__ == '__main__':
   marker_detector = MarkerDetector()

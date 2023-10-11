@@ -74,7 +74,6 @@ class MarkerFollower:
     rospy.Subscriber('/estop', Bool, self.estop_callback)
 
     # Publisher for the pose of the target and current Robot base
-    self.local_marker_pose_pub = rospy.Publisher('/local_marker_pose_stamped', PoseStamped, queue_size=1)
     self.camera_target_pub = rospy.Publisher('/camera_target_pose', PoseStamped, queue_size=1)
     self.ugv_target_pub = rospy.Publisher('/ugv_target_pose', PoseStamped, queue_size=1)
     self.current_pub = rospy.Publisher('/current_pose', PoseStamped, queue_size=1)
@@ -157,7 +156,7 @@ class MarkerFollower:
     try:
       transform = self.tf_buffer.lookup_transform(self.odom_frame, self.ugv_frame, rospy.Time(0))
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-      rospy.logerror("Failed to get current camera pose from tf")
+      rospy.logerr("Failed to get current camera pose from tf")
       return None
     # Only construct the current pose if the transform is looked up completed
     current_pose = PoseStamped()
@@ -354,7 +353,6 @@ class MarkerFollower:
       pose_3d.pose.orientation.y = q[1]
       pose_3d.pose.orientation.z = q[2]
       pose_3d.pose.orientation.w = q[3]
-      
 
       return pose_3d
 
@@ -380,7 +378,7 @@ class MarkerFollower:
     try:                                          #  Target frame      Source frame
       transform = self.tf_buffer.lookup_transform(self.marker_frame, self.optical_frame, rospy.Time(0))
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-      rospy.logerror("Failed to get current camera pose from tf")
+      rospy.logerr("Failed to get current camera pose from tf")
 
     # The camera target pose in the marker's frame is transformed from the optical pose
     camera_target_pose = tf2_geometry_msgs.do_transform_pose(optical_pose, transform)
@@ -396,7 +394,7 @@ class MarkerFollower:
     try:
       transform = self.tf_buffer.lookup_transform(self.ugv_frame, self.marker_frame, rospy.Time(0))
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-      rospy.logerror("Failed to get current camera pose from tf")
+      rospy.logerr("Failed to get current camera pose from tf")
     camera_target_pose = tf2_geometry_msgs.do_transform_pose(camera_target_pose, transform)
     self.camera_target_pub.publish(camera_target_pose)
 
