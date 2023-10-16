@@ -20,6 +20,7 @@
 
 from ur_connection_manager.srv import MoveL, MoveLResponse
 from ur_connection_manager.srv import MoveJ, MoveJResponse
+from ur_connection_manager.srv import SetTcp, SetTcpResponse
 import rospy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool
@@ -37,6 +38,7 @@ class URConnectionManager:
     # register the services
     self.move_l_service = rospy.Service('move_l', MoveL, self.handle_move_l)
     self.move_j_service = rospy.Service('move_j', MoveJ, self.handle_move_j)
+    self.set_tcp_service = rospy.Service('set_tcp', SetTcp, self.handle_set_tcp)
     pass
 
   def publish_joint_states(self):
@@ -51,6 +53,14 @@ class URConnectionManager:
     acceleration = req.acceleration
     velocity = req.velocity
     wait = req.wait
+
+    # Before moving the robot arm, compare the destination pose with the current pose
+    current_pose = self.robot.getl()
+    print('Current pose: ', current_pose)
+    print('Destination pose: ', destination_pose)
+    input('********* ONLY ENTER when you are sure.')
+
+    self.robot.movel(destination_pose, acceleration, velocity, wait)
     success = True
     return MoveLResponse(success)
 
@@ -62,6 +72,15 @@ class URConnectionManager:
     self.robot.movej(destination_pose, acceleration, velocity, wait)
     success = True
     return MoveJResponse(success)
+
+  def handle_set_tcp(self, req):
+    tcp_pose = req.tcp_pose
+    # acceleration = req.acceleration
+    # velocity = req.velocity
+    # wait = req.wait
+    self.robot.set_tcp(tcp_pose)
+    success = True
+    return SetTcpResponse(success)
 
   def estop_callback(self, msg):
     if msg.data:

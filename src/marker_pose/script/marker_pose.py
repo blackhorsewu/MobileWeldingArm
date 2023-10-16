@@ -47,6 +47,10 @@ import math
 # from chsweld_core.msg import URPose
 from geometry_msgs.msg import Pose, PoseStamped, TransformStamped
 
+# Import for robotic arm services
+from ur_connection_manager.srv import SetTcp, SetTcpResponse
+from ur_connection_manager.srv import MoveL, MoveLResponse
+
 # specify parameters for Charuco board
 squaresX = 3  # number of chessboard squares in X direction
 squaresY = 3  # number of chessboard squares in Y direction
@@ -151,40 +155,59 @@ class MarkerDetector:
       # Lookup the Transformation from the 'optical_frame' to the robot base frame.
       try:
         pose_transform = self.tf_buffer.lookup_transform(self.robot_base_frame, self.camera_optical_frame, rospy.Time(0))
+ 
+        # Only perform the transform if the lookup is successful
+        pose_transformed = tf2_geometry_msgs.do_transform_pose(pose_msg, pose_transform)
+
+        # Convert the quaternion to rotvec
+        r = R.from_quat([pose_transformed.pose.orientation.x, pose_transformed.pose.orientation.y,
+                        pose_transformed.pose.orientation.z, pose_transformed.pose.orientation.w])
+        rotvec = r.as_rotvec()
+
+        optical_pose = [pose_transformed.pose.position.x, pose_transformed.pose.position.y, 
+                        pose_transformed.pose.position.z, rotvec[0], rotvec[1], rotvec[2]]
+        print(optical_pose)
+        input('Hit enter to continue.')
+
+        # Wait for SetTcp service
+        # rospy.wait_for_service('set_tcp')
+        # self.set_tcp = rospy.ServiceProxy('set_tcp', SetTcp)
+
+        # response = self.set_tcp(self.optical_tcp)
+        # print('********* set tcp response: ', response)
+
+        # response = self.move_l(optical_pose, 0.1, 0.1, False)
+        # print('********* move L response: ', response)
+
+        self.poseStamped_pub.publish(pose_msg)
+
+        # Create the TransformStamped message
+        transform_stamped = TransformStamped()
+        transform_stamped.header.stamp = rospy.Time.now()
+        transform_stamped.header.frame_id = 'd435_color_optical_frame'
+        transform_stamped.child_frame_id = 'marker'
+        transform_stamped.transform.translation.x = pose_msg.pose.position.x
+        transform_stamped.transform.translation.y = pose_msg.pose.position.y
+        transform_stamped.transform.translation.z = pose_msg.pose.position.z
+        transform_stamped.transform.rotation = pose_msg.pose.orientation
+
+        # Broadcast the transformation of the marker from optical frame
+        self.tf_broadcaster.sendTransform(transform_stamped)
       except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
         rospy.logerr("Failed to get current camera pose from tf")
-      # Perform the transform
-      pose_transformed = tf2_geometry_msgs.do_transform_pose(pose_msg, pose_transform)
-
-      # Convert the quaternion to rotvec
-      r = R.from_quat([pose_transformed.pose.orientation.x, pose_transformed.pose.orientation.y,
-                       pose_transformed.pose.orientation.z, pose_transformed.pose.orientation.w])
-      rotvec = r.as_rotvec()
-
-      optical_pose = [pose_transformed.pose.position.x, pose_transformed.pose.position.y, 
-                      pose_transformed.pose.position.z, rotvec[0], rotvec[1], rotvec[2]]
-      # print(optical_pose)
-      # input('Hit enter to continue.')
-
-      self.poseStamped_pub.publish(pose_msg)
-
-      # Create the TransformStamped message
-      transform_stamped = TransformStamped()
-      transform_stamped.header.stamp = rospy.Time.now()
-      transform_stamped.header.frame_id = 'd435_color_optical_frame'
-      transform_stamped.child_frame_id = 'marker'
-      transform_stamped.transform.translation.x = pose_msg.pose.position.x
-      transform_stamped.transform.translation.y = pose_msg.pose.position.y
-      transform_stamped.transform.translation.z = pose_msg.pose.position.z
-      transform_stamped.transform.rotation = pose_msg.pose.orientation
-
-      # Broadcast the transformation of the marker from optical frame
-      self.tf_broadcaster.sendTransform(transform_stamped)
 
   def run(self):
     rate = rospy.Rate(10) # 10 Hz
     while not rospy.is_shutdown():
       rate.sleep()
+
+  def transform2ur_pose(self, transform):
+    r = R.from_quat([transform.transform.rotation.x, transform.transform.rotation.y,
+                     transform.transform.rotation.z, transform.transform.rotation.w])
+    rotvec = r.as_rotvec()
+    ur_pose = [transform.transform.translation.x, transform.transform.translation.y,
+               transform.transform.translation.z, rotvec[0], rotvec[1], rotvec[2]]
+    return ur_pose
 
   def __init__(self):
     # print('I am here in marker detector.')
@@ -218,8 +241,6 @@ class MarkerDetector:
     # Spin until the camera info is populated
     while self.intrinsic_camera is None or self.distortion is None:
       rospy.sleep(0.1)
-    
-    self.subscriber = rospy.Subscriber('/d435/color/image_raw', Image, self.image_callback, queue_size=10)
 
     self.tf_broadcaster = tf2_ros.TransformBroadcaster()
     self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
@@ -231,8 +252,18 @@ class MarkerDetector:
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
       rospy.logerr("Failed to get current camera pose from tf")
 
+    # Convert this Transformation to pose in UR format and then call URx to set TCP
+    self.optical_tcp = self.transform2ur_pose(self.tcp_transform)
+
+    # Wait for MoveL service
+    # rospy.wait_for_service('move_l')
+    # self.move_l = rospy.ServiceProxy('move_l', MoveL)
+
     # Publisher for the marker pose message
-    self.poseStamped_pub = rospy.Publisher('/marker_pose_stamped', PoseStamped, queue_size=10)
+    self.poseStamped_pub = rospy.Publisher('/marker_pose_stamped', PoseStamped, queue_size=1)
+
+    # Do not subscribe the image until all others have been initialized
+    self.subscriber = rospy.Subscriber('/d435/color/image_raw', Image, self.image_callback, queue_size=1)
 
 if __name__ == '__main__':
   marker_detector = MarkerDetector()

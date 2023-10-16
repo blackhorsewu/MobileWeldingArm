@@ -19,6 +19,7 @@ add_service_files(
   FILES
   MoveL.srv
   MoveJ.srv
+  SetTcp.srv
 )
 
 generate_messages(

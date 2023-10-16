@@ -23,6 +23,8 @@ from std_msgs.msg import String
 import urx
 from urx import Robot
 
+# import ur_connection_manager.scripts.ur_connection_manager_node.py 
+
 from transitions import Machine
 
 from ur_connection_manager.srv import MoveJ, MoveJRequest
@@ -52,12 +54,8 @@ class Robot:
     self.color_camera = None
     self.depth_camera = None
 
-    # Wait for MoveJ service
-    rospy.wait_for_service('move_j')
-    self.move_j = rospy.ServiceProxy('move_j', MoveJ)
-
     self.move_to_viewing_pose(VIEW_JOINTS)
-    pass
+    # pass
 
   def add_color_camera(self, camera):
     self.color_camera = camera
@@ -66,6 +64,9 @@ class Robot:
     self.depth_camera = camera
 
   def move_to_viewing_pose(self, pose):
+    # Wait for MoveJ service
+    rospy.wait_for_service('move_j')
+    self.move_j = rospy.ServiceProxy('move_j', MoveJ)
     response = self.move_j(pose, 0.4, 0.4, False)
 
   # The pose here specify the pose of the TCP
