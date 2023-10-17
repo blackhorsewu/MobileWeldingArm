@@ -27,16 +27,21 @@ from urx import Robot
 
 from transitions import Machine
 
-from ur_connection_manager.srv import MoveJ, MoveJRequest
+# from ur_connection_manager.srv import MoveJ, MoveJRequest
 
+from ugv import UGV
+from robot_arm import RobotArm
+from colour_camera import ColourCamera
 from marker_follower import MarkerFollower
 
 # Joint angles of the view pose for UR10
 VIEW_JOINTS = [-0.0524, -1.1756, -2.6466, 0.8147, 1.5948, 0.0049]
 
+'''
 class ColorCamera:
   def __init__(self, model):
     self.model = model
+'''
 
 class DepthCamera:
   def __init__(self, model):
@@ -87,6 +92,7 @@ class Robot:
     # possibly calling move_to_pose in a loop
     pass
 
+'''
 class UGV:
   def __init__(self, model):
     self.model = model
@@ -102,6 +108,7 @@ class UGV:
     marker_follower = MarkerFollower(distance)
     marker_follower.run()
     pass
+'''
 
 class WeldingPath:
   def generate_path(self):
@@ -133,7 +140,7 @@ class WeldingSystem:
     # 2. Robot model
     self.robot1_model = rospy.get_param('~robot1_model', "UR10")
     # 3. Robot ip address
-    # self.robot1_ip = rospy.get_param('~robot1_ip', '192.168.1.203')
+    self.robot1_ip = rospy.get_param('~robot1_ip', '192.168.1.203')
     # 4. Color Camera model
     self.color_camera1_model = rospy.get_param('~color_camera1_model', 'd435')
     # 5. Depth Camera model
@@ -148,10 +155,10 @@ class WeldingSystem:
     self.ugv1 = UGV(model=self.ugv1_model)
 
     # Equip the UGV with necessary parts
-    # 1. A robot arm
-    self.robot1 = Robot(model=self.robot1_model)
+    # 1. Instantiate a robot arm
+    self.robot1 = RobotArm(self.robot1_ip)
     # 2. A colour camera
-    self.color_camera1 = ColorCamera(model=self.color_camera1_model)
+    self.colour_camera1 = ColourCamera(model=self.colour_camera1_model)
     # 3. A depth camera
     self.depth_camera1 = DepthCamera(model=self.depth_camera1_model)
     # Then put the colour camera on the robot arm
@@ -164,6 +171,10 @@ class WeldingSystem:
     # Add the first UGV to the welding system
     self.add_ugv(self.ugv1)
     print('Parts assembled.')
+
+    # Initializes the components
+    # Start the robot arm which will start the joint state publisher
+    self.robot1.start()
 
     # Add transitions between states
     self.machine.add_transition(trigger='start_moving' , source='Initialization' , dest='UGVMovement')

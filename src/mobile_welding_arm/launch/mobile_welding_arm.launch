@@ -34,20 +34,20 @@
     Launch the robot UR10 and the socket connection manager
     This will connect to the UR 10 
     This will also publish the Joint States
-  -->
+  
   <param name="~robot_ip" value="192.168.1.203" />
   <node name="ur_connection_manager" 
         pkg="ur_connection_manager" 
         type="ur_connection_manager_node.py" /> 
-  
+  -->
 
   <!--
     Launch the Robot State Publisher
-  -->
+  
   <node name="robot_state_publisher" 
         pkg="robot_state_publisher" 
         type="robot_state_publisher" />
-  
+  -->
 
   <!-- 
     Setup the arguments before launching the UGV 
@@ -84,14 +84,14 @@
         output="screen" >
     <param name="ugv1_model" value="Bunker_Pro" />
     <param name="robot1_model" value="UR10" />
+    <param name="robot1_ip" value="192.168.1.203" />
     <param name="color_camera1_model" value="d435" />
     <param name="depth_camera1_model" value="d435" />
     <param name="view_joints" value="[-0.0524, -1.1756, -2.6466, 0.8147, 1.5948, 0.0049]" />
     <param name="distance" value="0.28" /> 
   </node>
   
-
-  <!-- launch the marker_pose node -->
+  <!-- launch the marker_pose node 
   <node pkg="marker_pose"
         type="marker_pose.py"
         name="marker_pose_node"
@@ -99,6 +99,8 @@
     <param name="markerLength" value="0.06" />
     <param name="aruco_type" value="DICT_6x6_100" />
   </node>
+  -->
+
   <!--
   <node name="rviz" pkg="rviz" type="rviz" />
   -->
