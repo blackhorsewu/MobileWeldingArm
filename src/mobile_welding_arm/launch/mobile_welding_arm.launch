@@ -43,11 +43,11 @@
 
   <!--
     Launch the Robot State Publisher
-  
+  -->
   <node name="robot_state_publisher" 
         pkg="robot_state_publisher" 
         type="robot_state_publisher" />
-  -->
+  
 
   <!-- 
     Setup the arguments before launching the UGV 
@@ -89,6 +89,8 @@
     <param name="depth_camera1_model" value="d435" />
     <param name="view_joints" value="[-0.0524, -1.1756, -2.6466, 0.8147, 1.5948, 0.0049]" />
     <param name="distance" value="0.28" /> 
+    <param name="markerLength" value="0.06" />
+    <param name="aruco_type" value="DICT_6x6_100" />
   </node>
   
   <!-- launch the marker_pose node 

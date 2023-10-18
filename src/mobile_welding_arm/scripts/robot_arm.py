@@ -60,18 +60,23 @@ class JointStatePublisher:
     pass
 
 class RobotArm(object):
-  def __init__(self, robot_ip):
+  def __init__(self, model, robot_ip):
+    self.model = model
     self.robot = urx.Robot(robot_ip)
     self.estop_sub = rospy.Subscriber('/estop', Bool, self.estop_callback)
     self.joint_publisher = JointStatePublisher(self.robot)
     pass
 
   def move_j(self, angles, acc, vel):
-    self.robot.movej(angles, acc, vel)
+    self.robot.movej(angles, acc, vel, wait=False)
     pass
 
   def set_tcp(self, pose):
     self.robot.set_tcp(pose)
+    pass
+
+  def move2view(self, angles):
+    self.move_j(angles, 0.4, 0.4)
     pass
 
   def start(self):

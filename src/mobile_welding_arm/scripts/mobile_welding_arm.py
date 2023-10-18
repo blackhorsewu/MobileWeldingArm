@@ -32,7 +32,7 @@ from transitions import Machine
 from ugv import UGV
 from robot_arm import RobotArm
 from colour_camera import ColourCamera
-from marker_follower import MarkerFollower
+# from mobile_welding_arm.scripts.ugv import MarkerFollower
 
 # Joint angles of the view pose for UR10
 VIEW_JOINTS = [-0.0524, -1.1756, -2.6466, 0.8147, 1.5948, 0.0049]
@@ -115,6 +115,9 @@ class WeldingPath:
     pass
 
 class WeldingSystem:
+  
+  # Initialise the welding_system
+
   def __init__(self):
     print('Initiating the system.')
     self.ugvs = []
@@ -124,16 +127,17 @@ class WeldingSystem:
     rospy.init_node('welding_system', anonymous=True)
     print('ROS initialized.')
 
+    '''
     # Setup publishers
     self.ask_user_confirm_ugv_move_pub = rospy.Publisher('ask_user_confirm_ugv_move', String, queue_size=10)
-    
+    '''
     # Define the states
     # To start with just 3 states:
-    states = ['Initialization', 'UGVMovement', 'Error']
+    states = ['Initialization', 'Startup', 'Error']
     
     # Initialize the state machine
     self.machine = Machine(model=self, states=states, initial='Initialization')
-
+    
     # Acquire parameters from launch file or command line
     # 1. UGV model
     self.ugv1_model = rospy.get_param('~ugv1_model', "Bunker_Pro")
@@ -142,51 +146,50 @@ class WeldingSystem:
     # 3. Robot ip address
     self.robot1_ip = rospy.get_param('~robot1_ip', '192.168.1.203')
     # 4. Color Camera model
-    self.color_camera1_model = rospy.get_param('~color_camera1_model', 'd435')
+    self.colour_camera1_model = rospy.get_param('~color_camera1_model', 'd435')
     # 5. Depth Camera model
     self.depth_camera1_model = rospy.get_param('~depth_camera1_model', 'd435')
     # 6. Joint angles of the robot arm view pose
     self.view_joints = rospy.get_param('~view_joints', VIEW_JOINTS)
     # 7. Distance from the CHS
     self.distance = rospy.get_param('~distance', '1.30')
+    # Acquire the parameters from launch file or command line
+    # The physical side of the marker is 60cm
+    self.markerLength = rospy.get_param('~markerLength', 0.06)
+    self.aruco_type = rospy.get_param('~aruco_type', "DICT_6X6_100")
+
     print('Parameters acquired.')
 
-    # Instantiate 1 UGV first
+    # Instantiate the components of the welding_system
+
+    # 1. Instantiate 1 UGV first
     self.ugv1 = UGV(model=self.ugv1_model)
 
     # Equip the UGV with necessary parts
-    # 1. Instantiate a robot arm
-    self.robot1 = RobotArm(self.robot1_ip)
-    # 2. A colour camera
-    self.colour_camera1 = ColourCamera(model=self.colour_camera1_model)
-    # 3. A depth camera
+    # 2. Instantiate a robot arm
+    self.robot1 = RobotArm(self.robot1_model, self.robot1_ip)
+    
+    # 3. A colour camera
+    self.colour_camera1 = ColourCamera(self.colour_camera1_model, 
+                                       self.markerLength, self.aruco_type)
+    
+    # 4. A depth camera
     self.depth_camera1 = DepthCamera(model=self.depth_camera1_model)
     # Then put the colour camera on the robot arm
-    self.robot1.add_color_camera(self.color_camera1)
+    
+    # self.robot1.add_color_camera(self.color_camera1)
     # Then put the colour camera on the robot arm
-    self.robot1.add_depth_camera(self.depth_camera1)
+    # self.robot1.add_depth_camera(self.depth_camera1)
     # Finally put the robot arm on the UGV
     self.ugv1.set_robot(self.robot1)
 
+    # There could be more than ONE UGV in the system
     # Add the first UGV to the welding system
     self.add_ugv(self.ugv1)
-    print('Parts assembled.')
-
-    # Initializes the components
-    # Start the robot arm which will start the joint state publisher
-    self.robot1.start()
 
     # Add transitions between states
-    self.machine.add_transition(trigger='start_moving' , source='Initialization' , dest='UGVMovement')
-    '''
-    self.machine.add_transition()
-    self.machine.add_transition()
-    self.machine.add_transition()
-    self.machine.add_transition()
-    self.machine.add_transition()
-    self.machine.add_transition()
-    self.machine.add_transition()
-    '''
+    # self.machine.add_transition(trigger='start_moving' , source='Initialization' , dest='UGVMovement')
+    pass
 
   def start_moving(self, distance):
     self.ask_user_confirm_ugv_move_pub.publish('ask_user_confirm_ugv_move')
@@ -196,6 +199,16 @@ class WeldingSystem:
   def add_ugv(self, ugv):
     self.ugvs.append(ugv)
 
+  # Start up the system components in sequence
+  def startup(self):
+    # Start the robot arm to publish its joint states
+    self.robot1.start()
+    # Move the robot arm, holding the colour camera to a viewing position
+    self.robot1.move2view(VIEW_JOINTS)
+    # Start the colour camera to detect marker
+    self.colour_camera1.start_marker_detection()
+    pass
+
   def main_loop(self):
     # Main application logic here
     # print('*********************** Just entered main loop *******************')
@@ -203,7 +216,8 @@ class WeldingSystem:
     # Before doing anything, make sure the initialization is completed.
     # while not rospy.is_shutdown():
     if self.state == 'Initialization':
-      self.start_moving(distance=0.28)
+      self.startup()
+      # self.start_moving(distance=0.28)
       # Needs confirmation from user to carry on
       # 
       # rospy.sleep(.01)

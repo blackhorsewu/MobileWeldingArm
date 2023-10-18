@@ -28,7 +28,12 @@
     1. The file is now renamed as colour_camera.py
     2. It is the module that detect the ArUco marker using OpenCV
     3. It transform the marker pose from the optical frame to the UGV centre frame
-    4. It publishes this transformed marker_pose in the topic '/marker_pose_stamped'
+    4. It must work together with 'robot_arm' to track the camera to the marker at the 
+       centre of the colour image
+    5. In order to do that, the tcp of the 'robot_arm' needs to be set to the camera
+       optical frame.
+    6. Only then it publishes this transformed marker_pose in the topic
+       '/marker_pose_stamped'
 
   It assumes:
   1. The Intel RealSense D435 camera is used
@@ -50,8 +55,6 @@ from cv_bridge import CvBridge
 import numpy as np
 from sensor_msgs.msg import CameraInfo, Image
 from scipy.spatial.transform import Rotation as R
-from collections import deque
-import math
 
 # from chsweld_core.msg import URPose
 from geometry_msgs.msg import Pose, PoseStamped, TransformStamped
@@ -218,16 +221,41 @@ class ColourCamera:
                transform.transform.translation.z, rotvec[0], rotvec[1], rotvec[2]]
     return ur_pose
 
-  def __init__(self):
-    # print('I am here in marker detector.')
+  def get_tcp(self):
+    # Lookup the Transformation from the "flange" to the camera optical frame.
+    # This is used to set the TCP for moving the UR10.
+    try:
+      self.tcp_transform = self.tf_buffer.lookup_transform(self.camera_optical_frame, self.flange_frame, rospy.Time(0))
+      # Convert this Transformation to pose in UR format and then call URx to set TCP
+      # self.optical_tcp = self.transform2ur_pose(self.tcp_transform)
 
-    # Initialize the ROS node
-    rospy.init_node('marker_detector', anonymous=True)
+    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+      rospy.logerr("Failed to get current camera pose from tf")
+
+    pass
+    
+  # Only start marker detection when instructed by the Welding System at top level
+  # Once subscribed the raw colour image, it will call the 'image_callback' function
+  # which will start marker detection.
+  def start_marker_detection(self):
+    # Subscribe to the camera info and image topics
+    self.info_subscriber = rospy.Subscriber('/d435/color/camera_info', CameraInfo, self.camera_info_callback, queue_size=10)
+    # Spin until the camera info is populated
+    while self.intrinsic_camera is None or self.distortion is None:
+      rospy.sleep(0.1)
+    # Do not subscribe the image until all others have been initialized
+    self.subscriber = rospy.Subscriber('/d435/color/image_raw', Image, self.image_callback, queue_size=1)
+
+    pass
+
+  def __init__(self, model, marker_length, aruco_type):
+    self.model = model
+    # print('I am here in marker detector.')
 
     # Acquire the parameters from launch file or command line
     # The physical side of the marker is 60cm
-    self.markerLength = rospy.get_param('~markerLength', 0.06)
-    self.aruco_type = rospy.get_param('~aruco_type', "DICT_6X6_100")
+    self.markerLength = marker_length
+    self.aruco_type = aruco_type
 
     # Initialize the intrinsic camera parameters
     self.intrinsic_camera = None
@@ -245,24 +273,8 @@ class ColourCamera:
     self.robot_base_frame = 'base'
     self.flange_frame = 'flange'
 
-    # Subscribe to the camera info and image topics
-    self.info_subscriber = rospy.Subscriber('/d435/color/camera_info', CameraInfo, self.camera_info_callback, queue_size=10)
-    # Spin until the camera info is populated
-    while self.intrinsic_camera is None or self.distortion is None:
-      rospy.sleep(0.1)
-
     self.tf_broadcaster = tf2_ros.TransformBroadcaster()
     self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
-
-    # Lookup the Transformation from the "flange" to the camera optical frame.
-    # This is used to set the TCP for moving the UR10.
-    try:
-      self.tcp_transform = self.tf_buffer.lookup_transform(self.camera_optical_frame, self.flange_frame, rospy.Time(0))
-    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-      rospy.logerr("Failed to get current camera pose from tf")
-
-    # Convert this Transformation to pose in UR format and then call URx to set TCP
-    self.optical_tcp = self.transform2ur_pose(self.tcp_transform)
 
     # Wait for MoveL service
     # rospy.wait_for_service('move_l')
@@ -270,9 +282,6 @@ class ColourCamera:
 
     # Publisher for the marker pose message
     self.poseStamped_pub = rospy.Publisher('/marker_pose_stamped', PoseStamped, queue_size=1)
-
-    # Do not subscribe the image until all others have been initialized
-    self.subscriber = rospy.Subscriber('/d435/color/image_raw', Image, self.image_callback, queue_size=1)
 
 if __name__ == '__main__':
   colour_camera = ColourCamera()
