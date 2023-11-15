@@ -28,14 +28,16 @@
     1. At the beginning of the launch file of the system, there is a command to load a YAML
        file "joint_names.yaml" in the directory "/config" under "mobile_welding_arm", into the
        ROS parameter server.
-    2. Once the 'robot_arm' in the top level "welding_system", it will invoke the 'start' method
-       of this module to start the whole thing especially to publish the joint states.
+    2. Once the 'robot_arm' in the top level "welding_system" is instantiated, it will invoke 
+       the 'start' method of this module to start the whole thing especially to publish the 
+       joint states.
 
 '''
 
 import rospy
 import threading
 import urx # Import the URx library
+import time
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool
 
@@ -73,6 +75,7 @@ class RobotArm(object):
 
   def set_tcp(self, pose):
     self.robot.set_tcp(pose)
+    time.sleep(0.2) # pause is essential for tcp to take effect, at least for 0.1 second
     pass
 
   def move2view(self, angles):

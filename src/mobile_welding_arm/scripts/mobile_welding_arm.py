@@ -10,10 +10,14 @@
   Author: Victor W H Wu
   Date: 24 August 2023.
 
+  Updated on: 15 November 2023.
+
   File name: mobile_welding_arm.py
 
   Description:
     This is the top level script of the whole "mobile welding arm" system.
+
+    Do not use the "ur_connection_manager" anymore.
 
 '''
 
@@ -23,25 +27,14 @@ from std_msgs.msg import String
 import urx
 from urx import Robot
 
-# import ur_connection_manager.scripts.ur_connection_manager_node.py 
-
 from transitions import Machine
-
-# from ur_connection_manager.srv import MoveJ, MoveJRequest
 
 from ugv import UGV
 from robot_arm import RobotArm
 from colour_camera import ColourCamera
-# from mobile_welding_arm.scripts.ugv import MarkerFollower
 
 # Joint angles of the view pose for UR10
 VIEW_JOINTS = [-0.0524, -1.1756, -2.6466, 0.8147, 1.5948, 0.0049]
-
-'''
-class ColorCamera:
-  def __init__(self, model):
-    self.model = model
-'''
 
 class DepthCamera:
   def __init__(self, model):
@@ -74,7 +67,7 @@ class Robot:
     self.move_j = rospy.ServiceProxy('move_j', MoveJ)
     response = self.move_j(pose, 0.4, 0.4, False)
 
-  # The pose here specify the pose of the TCP
+  # The pose here specifies the pose of the TCP in robot arm base
   def move_to_pose(self, pose):
     # Code to move the arm to a specific pose
     self.current_pose = pose
@@ -91,24 +84,7 @@ class Robot:
     # Code to make the arm follow a specific path,
     # possibly calling move_to_pose in a loop
     pass
-
-'''
-class UGV:
-  def __init__(self, model):
-    self.model = model
-    self.robot = None
-
-  def set_robot(self, robot):
-    self.robot = robot
-
-  # move the UGV to the target
-  # the target is the distance from the marker on the Z-axis to the camera
-  def move_to_target(self, distance):
-    # print('********************* In move_to_target ****************************')
-    marker_follower = MarkerFollower(distance)
-    marker_follower.run()
-    pass
-'''
+# End Class Robot
 
 class WeldingPath:
   def generate_path(self):
@@ -190,14 +166,17 @@ class WeldingSystem:
     # Add transitions between states
     # self.machine.add_transition(trigger='start_moving' , source='Initialization' , dest='UGVMovement')
     pass
+  # __init__
 
   def start_moving(self, distance):
     self.ask_user_confirm_ugv_move_pub.publish('ask_user_confirm_ugv_move')
     # print('********************** In start_moving *********************')
     self.ugv1.move_to_target(distance)
+    pass
 
   def add_ugv(self, ugv):
     self.ugvs.append(ugv)
+    pass
 
   # Start up the system components in sequence
   def startup(self):
@@ -221,6 +200,9 @@ class WeldingSystem:
       # Needs confirmation from user to carry on
       # 
       # rospy.sleep(.01)
+    pass
+  # End main_loop
+# End Class WeldingSystem
 
 if __name__ == '__main__':
     print('Entered into the System.')

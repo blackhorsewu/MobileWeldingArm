@@ -26,8 +26,8 @@
 
     Updated on 17 October 2023.
     1. The file is now renamed as colour_camera.py
-    2. It is the module that detect the ArUco marker using OpenCV
-    3. It transform the marker pose from the optical frame to the UGV centre frame
+    2. It is the module that detects the ArUco marker using OpenCV
+    3. It transforms the marker pose from the optical frame to the UGV centre frame
     4. It must work together with 'robot_arm' to track the camera to the marker at the 
        centre of the colour image
     5. In order to do that, the tcp of the 'robot_arm' needs to be set to the camera
@@ -37,7 +37,7 @@
 
   It assumes:
   1. The Intel RealSense D435 camera is used
-  2. The camera is launched by a higher level launch file in ROS
+  2. The camera is launched by "mobile_welding_arm.launch"
 
   It requires:
   1. OpenCV
